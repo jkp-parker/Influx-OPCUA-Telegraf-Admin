@@ -1,0 +1,60 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  OPC UA Telegraf Admin — docker-compose
+#
+#  This stack contains ONLY the administration portal (API backend + web UI).
+#  It does NOT include an InfluxDB or Telegraf instance — those are expected
+#  to be running separately in your environment.  Point the portal at your
+#  existing instances during the first-run setup wizard.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── FastAPI backend ──────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: opcua-admin-backend
+    restart: unless-stopped
+    volumes:
+      # Persist the SQLite configuration database between restarts
+      - opcua_data:/app/data
+      # Optional: mount your Telegraf config directory so the portal can
+      # write the generated telegraf.conf directly into place.
+      # - /etc/telegraf:/etc/telegraf
+    environment:
+      DATABASE_URL: sqlite:////app/data/opcua_admin.db
+    networks:
+      - opcua-net
+    # Expose backend directly for development/debugging (remove in production)
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/metrics')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── React frontend (nginx) ───────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: opcua-admin-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - opcua-net
+
+volumes:
+  opcua_data:
+    driver: local
+
+networks:
+  opcua-net:
+    driver: bridge

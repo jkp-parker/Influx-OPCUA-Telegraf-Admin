@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.env
+*.db
+*.sqlite3
+venv/
+.venv/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.local
+
+# Docker
+.docker/
+
+# Backend static dir (populated during Docker build from frontend dist, not tracked)
+backend/static/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
