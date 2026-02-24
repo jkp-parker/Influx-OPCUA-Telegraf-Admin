@@ -44,6 +44,23 @@ services:
     networks:
       - opcua-net
 
+  # ── InfluxDB volume permissions ───────────────────────────────────────────────
+  #  influxdb:3-core runs as UID 1500:1500.  Docker named volumes are created
+  #  owned by root, so InfluxDB can't write to them without this one-shot fix.
+  #  This container runs first, chowns the volume, then exits.
+  influxdb-volume-init:
+    image: alpine
+    container_name: influxdb-volume-init
+    restart: "no"
+    command:
+      - sh
+      - -c
+      - |
+        chown -R 1500:1500 /var/lib/influxdb3/data && \
+        chmod -R u=rwX,g=rwX,o=rX /var/lib/influxdb3/data
+    volumes:
+      - influxdb_data:/var/lib/influxdb3/data
+
   # ── InfluxDB 3.x (Core) ──────────────────────────────────────────────────────
   #  InfluxDB 3 Core — high-performance time-series engine with SQL + InfluxQL.
   #  NOTE: v3 has no org/user concept — auth is token-only, data lives in databases.
@@ -52,6 +69,9 @@ services:
     image: influxdb:3-core
     container_name: influxdb
     restart: unless-stopped
+    depends_on:
+      influxdb-volume-init:
+        condition: service_completed_successfully
     ports:
       - "8181:8181"
     environment:

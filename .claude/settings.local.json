@@ -4,7 +4,8 @@
       "WebFetch(domain:docs.iotechsys.com)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:docs.influxdata.com)",
-      "WebFetch(domain:hub.docker.com)"
+      "WebFetch(domain:hub.docker.com)",
+      "WebFetch(domain:community.influxdata.com)"
     ]
   }
 }
