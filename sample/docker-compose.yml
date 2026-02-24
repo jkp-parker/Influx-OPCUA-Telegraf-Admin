@@ -5,92 +5,96 @@ version: "3.9"
 #
 #  This compose file spins up a complete end-to-end demo environment:
 #
-#    opc-plc   →  Telegraf (OPC UA input)  →  InfluxDB 2.x  →  Grafana
-#                                               ↑
-#                              Admin Portal (backend + frontend)
+#    opc-ua-sim  →  Telegraf (OPC UA input)  →  InfluxDB 3.x  →  Grafana
+#                                                ↑
+#                               Admin Portal (backend + frontend)
 #
 #  Access:
 #    • Admin Portal  : http://localhost:9077
 #    • Grafana       : http://localhost:3000  (admin / grafanapassword)
-#    • InfluxDB UI   : http://localhost:8086  (admin / influxpassword)
-#                                         or  (demo  / demopassword)
-#    • OPC PLC       : opc.tcp://localhost:50000
+#    • InfluxDB UI   : http://localhost:8181
+#    • InfluxDB Expl : http://localhost:8888
+#    • OPC UA Sim    : opc.tcp://localhost:49947
 #
 #  First-run setup inside the Admin Portal:
 #    1. Open http://localhost:9077
 #    2. Follow the Setup wizard and enter:
-#         InfluxDB URL   : http://influxdb:8086
+#         InfluxDB URL   : http://influxdb:8181
 #         Token          : my-super-secret-admin-token
-#         Org            : opcua-demo
-#         Bucket         : opcua
+#         Database       : opcua
 #    3. Add an OPC UA device:
-#         Endpoint URL   : opc.tcp://opc-plc:50000
+#         Endpoint URL   : opc.tcp://opc-ua-sim:49947
 #    4. Browse / scan nodes and enable the tags you want.
 #    5. Download or apply the generated telegraf.conf.
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
 
-  # ── Microsoft OPC UA PLC Simulator ──────────────────────────────────────────
-  #  Exposes simulated industrial data (random values, trends, spikes, etc.)
-  #  Endpoint: opc.tcp://opc-plc:50000
-  opc-plc:
-    image: mcr.microsoft.com/iotedge/opc-plc:latest
-    container_name: opc-plc
+  # ── IoTech OPC UA Simulator ──────────────────────────────────────────────────
+  #  Exposes simulated data via Lua-defined nodes (waveforms, counters, data types).
+  #  Endpoint: opc.tcp://opc-ua-sim:49947
+  #  Image docs: https://docs.iotechsys.com/edge-xrt21/simulators/opc-ua/simulator/overview.html
+  opc-ua-sim:
+    image: iotechsys/opc-ua-sim:1.2
+    container_name: opc-ua-sim
     restart: unless-stopped
-    command: --pn=50000 --autoaccept --sph --wp=8080
+    command: -l /example-scripts/simulation.lua
     ports:
-      - "50000:50000"   # OPC UA endpoint
-      - "8080:8080"     # OPC PLC web/config interface
+      - "49947:49947"   # OPC UA endpoint
     networks:
       - opcua-net
 
-  # ── InfluxDB 2.x ────────────────────────────────────────────────────────────
+  # ── InfluxDB 3.x (Core) ──────────────────────────────────────────────────────
+  #  InfluxDB 3 Core — high-performance time-series engine with SQL + InfluxQL.
+  #  NOTE: v3 has no org/user concept — auth is token-only, data lives in databases.
+  #  The influxdb-init service creates the "opcua" database on first start.
   influxdb:
-    image: influxdb:2.7
+    image: influxdb:3-core
     container_name: influxdb
     restart: unless-stopped
     ports:
-      - "8086:8086"
+      - "8181:8181"
     environment:
-      DOCKER_INFLUXDB_INIT_MODE: setup
-      DOCKER_INFLUXDB_INIT_USERNAME: admin
-      DOCKER_INFLUXDB_INIT_PASSWORD: influxpassword
-      DOCKER_INFLUXDB_INIT_ORG: opcua-demo
-      DOCKER_INFLUXDB_INIT_BUCKET: opcua
-      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: my-super-secret-admin-token
+      # Sets the required Bearer token for all API requests.
+      INFLUXDB3_AUTH_TOKEN: my-super-secret-admin-token
+    command:
+      - influxdb3
+      - serve
+      - --node-id=node0
+      - --object-store=file
+      - --data-dir=/var/lib/influxdb3/data
+      - --plugin-dir=/var/lib/influxdb3/plugins
     volumes:
-      - influxdb_data:/var/lib/influxdb2
+      - influxdb_data:/var/lib/influxdb3/data
     networks:
       - opcua-net
     healthcheck:
-      test: ["CMD", "influx", "ping"]
+      test: ["CMD", "curl", "-f", "http://localhost:8181/health"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # ── InfluxDB demo-user initialisation ────────────────────────────────────────
-  #  Runs once after InfluxDB is healthy and creates the demo/demopassword user.
-  #  Uses the same influxdb image so curl and python3 are available.
+  # ── InfluxDB database initialisation ─────────────────────────────────────────
+  #  Runs once after InfluxDB is healthy and creates the "opcua" database.
   influxdb-init:
-    image: influxdb:2.7
+    image: influxdb:3-core
     container_name: influxdb-init
     restart: "no"
     depends_on:
       influxdb:
         condition: service_healthy
     environment:
-      INFLUX_HOST: http://influxdb:8086
+      INFLUX_HOST: http://influxdb:8181
       INFLUX_TOKEN: my-super-secret-admin-token
-      INFLUX_ORG: opcua-demo
-    entrypoint: ["bash", "/scripts/01-create-demo-user.sh"]
+      INFLUX_DATABASE: opcua
+    entrypoint: ["bash", "/scripts/01-init-database.sh"]
     volumes:
       - ./influxdb/init:/scripts:ro
     networks:
       - opcua-net
 
   # ── Telegraf ─────────────────────────────────────────────────────────────────
-  #  Reads data from the OPC PLC server and writes to InfluxDB.
+  #  Reads data from the OPC UA simulator and writes to InfluxDB.
   #  The telegraf.conf in ./telegraf/ is pre-configured for this demo stack.
   telegraf:
     image: telegraf:1.30
@@ -99,16 +103,37 @@ services:
     depends_on:
       influxdb:
         condition: service_healthy
-      opc-plc:
+      opc-ua-sim:
         condition: service_started
     volumes:
       - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
     networks:
       - opcua-net
 
+  # ── InfluxDB 3 Explorer ───────────────────────────────────────────────────────
+  #  Web UI for browsing, querying, and managing InfluxDB 3 databases and tokens.
+  #  Pre-configured to connect to the local InfluxDB instance via config.json.
+  influxdb-explorer:
+    image: influxdata/influxdb3-ui:1.6.2
+    container_name: influxdb-explorer
+    restart: unless-stopped
+    ports:
+      - "8888:80"
+    command: ["--mode=admin"]
+    environment:
+      # Change this to a secure random value in production: openssl rand -hex 32
+      SESSION_SECRET_KEY: "opcua-demo-session-secret-change-in-production"
+    volumes:
+      - ./influxdb-explorer/config:/app-root/config:ro
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    networks:
+      - opcua-net
+
   # ── Grafana ───────────────────────────────────────────────────────────────────
   #  Dashboards and visualisation for InfluxDB data.
-  #  The InfluxDB datasource (Flux) is auto-provisioned on first start.
+  #  The InfluxDB datasource (InfluxQL) is auto-provisioned on first start.
   #
   #  Accounts:
   #    admin / grafanapassword  — full admin access

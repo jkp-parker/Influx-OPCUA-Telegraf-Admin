@@ -4,13 +4,13 @@ datasources:
   - name: InfluxDB — opcua
     type: influxdb
     access: proxy
-    url: http://influxdb:8086
+    url: http://influxdb:8181
     isDefault: true
     editable: true
     jsonData:
-      version: Flux
-      organization: opcua-demo
-      defaultBucket: opcua
-      tlsSkipVerify: true
+      # InfluxDB 3 Core does not support Flux — use InfluxQL via the v1 compat API.
+      version: InfluxQL
+      dbName: opcua
+      httpMode: GET
     secureJsonData:
       token: my-super-secret-admin-token
