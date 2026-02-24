@@ -89,7 +89,7 @@ services:
     networks:
       - opcua-net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8181/health"]
+      test: ["CMD", "curl", "-f", "-H", "Authorization: Bearer my-super-secret-admin-token", "http://localhost:8181/health"]
       interval: 10s
       timeout: 5s
       retries: 5
