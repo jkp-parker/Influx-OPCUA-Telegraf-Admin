@@ -1,13 +1,14 @@
 # OPC UA Telegraf Admin — Sample Stack
 
 This directory contains a ready-to-run demo environment that wires together
-every component of the OPC UA → Telegraf → InfluxDB pipeline:
+every component of the OPC UA → Telegraf → InfluxDB → Grafana pipeline:
 
 | Service | Image | Purpose |
 |---|---|---|
 | **opc-plc** | `mcr.microsoft.com/iotedge/opc-plc` | Simulated OPC UA server with industrial data |
 | **influxdb** | `influxdb:2.7` | Time-series database |
 | **telegraf** | `telegraf:1.30` | Reads OPC UA nodes and writes to InfluxDB |
+| **grafana** | `grafana/grafana:10.4.2` | Dashboards and visualisation (InfluxDB datasource pre-provisioned) |
 | **backend** | *(built locally)* | FastAPI admin portal API |
 | **frontend** | *(built locally)* | React admin portal UI |
 
@@ -26,22 +27,61 @@ Once all containers are healthy:
 | URL | What you get |
 |---|---|
 | `http://localhost:9077` | Admin Portal |
+| `http://localhost:3000` | Grafana |
 | `http://localhost:8086` | InfluxDB UI |
 | `opc.tcp://localhost:50000` | OPC UA endpoint |
 | `http://localhost:8080/pn.json` | OPC PLC node listing |
 
 ---
 
-## Default Credentials
+## Demo Credentials
 
-**InfluxDB**
-- Username: `admin`
-- Password: `influxpassword`
+### InfluxDB
+
+| Account | Username | Password | Role |
+|---|---|---|---|
+| Admin | `admin` | `influxpassword` | Full admin |
+| Demo | `demo` | `demopassword` | Org member (read) |
+
 - Token: `my-super-secret-admin-token`
 - Org: `opcua-demo`
 - Bucket: `opcua`
 
-> Change these in `docker-compose.yml` before using in any non-local environment.
+The `demo` user is created automatically on first start by the init script
+in `influxdb/init/01-create-demo-user.sh`.
+
+### Grafana
+
+| Account | Username | Password | Role |
+|---|---|---|---|
+| Admin | `admin` | `grafanapassword` | Full admin |
+| Anonymous | *(no login)* | *(no login)* | Viewer (read-only) |
+
+Anonymous viewer access is enabled by default so dashboards can be browsed
+without logging in. Sign-up is disabled.
+
+> **Security note:** Change all credentials in `docker-compose.yml` and
+> `grafana/provisioning/datasources/influxdb.yml` before exposing this stack
+> outside of localhost.
+
+---
+
+## Grafana — InfluxDB Datasource
+
+The InfluxDB datasource is automatically provisioned at startup using the
+configuration in `grafana/provisioning/datasources/influxdb.yml`. It uses
+the **Flux** query language pointed at `http://influxdb:8086`.
+
+To create your first dashboard:
+1. Open `http://localhost:3000` and log in as `admin` / `grafanapassword`
+2. Go to **Dashboards → New → New Dashboard**
+3. Add a panel and select **InfluxDB — opcua** as the datasource
+4. Write a Flux query, for example:
+   ```flux
+   from(bucket: "opcua")
+     |> range(start: -5m)
+     |> filter(fn: (r) => r._measurement == "opc_plc_telemetry")
+   ```
 
 ---
 
@@ -116,7 +156,15 @@ docker compose down -v       # also delete persisted data volumes
 ┌──────────────────────────────────────────────────────────┐
 │  influxdb  (port 8086)                                   │
 │  InfluxDB 2.7  •  org: opcua-demo  •  bucket: opcua      │
-└─────────────────────────────────────────────────────────-┘
+│  users: admin / demo                                     │
+└──────────────┬─────────────────────────────────────────-─┘
+               │ Flux (HTTP)
+               ▼
+┌──────────────────────────────────────────────────────────┐
+│  grafana  (port 3000)                                    │
+│  Datasource auto-provisioned from influxdb:8086          │
+│  accounts: admin  •  anonymous viewer                    │
+└──────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────┐
 │  Admin Portal                                            │
