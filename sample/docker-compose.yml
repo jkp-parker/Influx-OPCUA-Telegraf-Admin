@@ -61,8 +61,6 @@ services:
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: my-super-secret-admin-token
     volumes:
       - influxdb_data:/var/lib/influxdb2
-      # Init script runs once after first-time setup to create the demo user
-      - ./influxdb/init:/docker-entrypoint-initdb.d:ro
     networks:
       - opcua-net
     healthcheck:
@@ -70,6 +68,26 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # ── InfluxDB demo-user initialisation ────────────────────────────────────────
+  #  Runs once after InfluxDB is healthy and creates the demo/demopassword user.
+  #  Uses the same influxdb image so curl and python3 are available.
+  influxdb-init:
+    image: influxdb:2.7
+    container_name: influxdb-init
+    restart: "no"
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    environment:
+      INFLUX_HOST: http://influxdb:8086
+      INFLUX_TOKEN: my-super-secret-admin-token
+      INFLUX_ORG: opcua-demo
+    entrypoint: ["bash", "/scripts/01-create-demo-user.sh"]
+    volumes:
+      - ./influxdb/init:/scripts:ro
+    networks:
+      - opcua-net
 
   # ── Telegraf ─────────────────────────────────────────────────────────────────
   #  Reads data from the OPC PLC server and writes to InfluxDB.
