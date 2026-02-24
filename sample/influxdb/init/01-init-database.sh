@@ -8,22 +8,18 @@
 #
 # Environment variables expected (set in docker-compose.yml):
 #   INFLUX_HOST     — e.g. http://influxdb:8181
-#   INFLUX_TOKEN    — admin token (matches INFLUXDB3_AUTH_TOKEN on the server)
 #   INFLUX_DATABASE — database name to create, e.g. opcua
 #
-# NOTE: InfluxDB 3 has no org/user concept.  Auth is token-only.
-#       Databases replace v2 "buckets".
+# NOTE: Auth is disabled in this demo stack (no INFLUXDB3_AUTH_TOKEN set).
 # ─────────────────────────────────────────────────────────────────────────────
 set -e
 
 INFLUX_HOST="${INFLUX_HOST:-http://influxdb:8181}"
-INFLUX_TOKEN="${INFLUX_TOKEN}"
 DATABASE="${INFLUX_DATABASE:-opcua}"
 
 echo "[influxdb-init] Creating database '${DATABASE}' on ${INFLUX_HOST}..."
 
 influxdb3 create database "${DATABASE}" \
-  --host "${INFLUX_HOST}" \
-  --token "${INFLUX_TOKEN}"
+  --host "${INFLUX_HOST}"
 
 echo "[influxdb-init] Done — database '${DATABASE}' ready."

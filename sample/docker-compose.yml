@@ -20,8 +20,8 @@ version: "3.9"
 #    1. Open http://localhost:9077
 #    2. Follow the Setup wizard and enter:
 #         InfluxDB URL   : http://influxdb:8181
-#         Token          : my-super-secret-admin-token
 #         Database       : opcua
+#         Token          : (leave blank — auth is disabled in this demo)
 #    3. Add an OPC UA device:
 #         Endpoint URL   : opc.tcp://opc-ua-sim:49947
 #    4. Browse / scan nodes and enable the tags you want.
@@ -63,7 +63,8 @@ services:
 
   # ── InfluxDB 3.x (Core) ──────────────────────────────────────────────────────
   #  InfluxDB 3 Core — high-performance time-series engine with SQL + InfluxQL.
-  #  NOTE: v3 has no org/user concept — auth is token-only, data lives in databases.
+  #  NOTE: v3 has no org/user concept — data lives in named databases.
+  #  Auth is disabled for this demo (no INFLUXDB3_AUTH_TOKEN set).
   #  The influxdb-init service creates the "opcua" database on first start.
   influxdb:
     image: influxdb:3-core
@@ -74,9 +75,6 @@ services:
         condition: service_completed_successfully
     ports:
       - "8181:8181"
-    environment:
-      # Sets the required Bearer token for all API requests.
-      INFLUXDB3_AUTH_TOKEN: my-super-secret-admin-token
     command:
       - influxdb3
       - serve
@@ -89,7 +87,7 @@ services:
     networks:
       - opcua-net
     healthcheck:
-      test: ["CMD", "curl", "-f", "-H", "Authorization: Bearer my-super-secret-admin-token", "http://localhost:8181/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8181/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -105,7 +103,6 @@ services:
         condition: service_healthy
     environment:
       INFLUX_HOST: http://influxdb:8181
-      INFLUX_TOKEN: my-super-secret-admin-token
       INFLUX_DATABASE: opcua
     entrypoint: ["bash", "/scripts/01-init-database.sh"]
     volumes:

@@ -9,8 +9,7 @@ datasources:
     editable: true
     jsonData:
       # InfluxDB 3 Core does not support Flux — use InfluxQL via the v1 compat API.
+      # Auth is disabled in this demo so no token is required.
       version: InfluxQL
       dbName: opcua
       httpMode: GET
-    secureJsonData:
-      token: my-super-secret-admin-token

@@ -1,6 +1,5 @@
 {
   "DEFAULT_INFLUX_SERVER": "http://influxdb:8181",
   "DEFAULT_INFLUX_DATABASE": "opcua",
-  "DEFAULT_API_TOKEN": "my-super-secret-admin-token",
   "DEFAULT_SERVER_NAME": "OPC UA Demo"
 }
