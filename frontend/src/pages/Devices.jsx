@@ -7,7 +7,7 @@ import {
 import Modal from '../components/Modal'
 import {
   listDevices, createDevice, updateDevice, deleteDevice,
-  testDeviceConnection, listInfluxConfigs,
+  testDeviceConnection, testDeviceConnectionRaw, listInfluxConfigs,
 } from '../services/api'
 
 const SECURITY_POLICIES = [
@@ -77,6 +77,8 @@ export default function Devices() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [modalTesting, setModalTesting] = useState(false)
+  const [modalTestResult, setModalTestResult] = useState(null)
   const [testResults, setTestResults] = useState({})
   const [testingId, setTestingId] = useState(null)
 
@@ -88,7 +90,7 @@ export default function Devices() {
 
   useEffect(() => { load() }, [])
 
-  const openAdd = () => { setForm(EMPTY_FORM); setError(''); setModal('add') }
+  const openAdd = () => { setForm(EMPTY_FORM); setError(''); setModalTestResult(null); setModal('add') }
   const openEdit = (d) => {
     setForm({
       name: d.name, endpoint_url: d.endpoint_url, username: d.username || '',
@@ -97,6 +99,7 @@ export default function Devices() {
     })
     setEditTarget(d)
     setError('')
+    setModalTestResult(null)
     setModal('edit')
   }
 
@@ -120,6 +123,23 @@ export default function Devices() {
     if (!confirm('Delete this device and all its tags?')) return
     await deleteDevice(id)
     load()
+  }
+
+  const handleModalTest = async () => {
+    if (!form.endpoint_url) { setModalTestResult({ success: false, message: 'Enter an endpoint URL first' }); return }
+    setModalTesting(true); setModalTestResult(null)
+    try {
+      const result = await testDeviceConnectionRaw({
+        endpoint_url: form.endpoint_url,
+        username: form.username,
+        password: form.password,
+      })
+      setModalTestResult(result)
+    } catch {
+      setModalTestResult({ success: false, message: 'Request failed' })
+    } finally {
+      setModalTesting(false)
+    }
   }
 
   const handleTest = async (d) => {
@@ -239,12 +259,24 @@ export default function Devices() {
         title={modal === 'add' ? 'Add OPC UA Device' : 'Edit Device'}
       >
         <DeviceForm form={form} setForm={setForm} influxConfigs={influxConfigs} />
+        {modalTestResult && (
+          <div className={`mt-3 text-sm flex items-center gap-1.5 ${modalTestResult.success ? 'text-green-600' : 'text-red-600'}`}>
+            {modalTestResult.success ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
+            {modalTestResult.message}
+          </div>
+        )}
         {error && <p className="text-sm text-red-600 mt-3 flex items-center gap-1"><AlertCircle size={14} />{error}</p>}
-        <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-gray-100">
-          <button onClick={() => setModal(null)} className="btn-secondary">Cancel</button>
-          <button onClick={handleSave} disabled={saving} className="btn-primary">
-            {saving && <Loader2 size={14} className="animate-spin" />} Save
+        <div className="flex justify-between gap-2 mt-5 pt-4 border-t border-gray-100">
+          <button onClick={handleModalTest} disabled={modalTesting} className="btn-secondary">
+            {modalTesting ? <Loader2 size={14} className="animate-spin" /> : <Wifi size={14} />}
+            Test Connection
           </button>
+          <div className="flex gap-2">
+            <button onClick={() => setModal(null)} className="btn-secondary">Cancel</button>
+            <button onClick={handleSave} disabled={saving} className="btn-primary">
+              {saving && <Loader2 size={14} className="animate-spin" />} Save
+            </button>
+          </div>
         </div>
       </Modal>
     </div>

@@ -149,6 +149,18 @@ class BulkTagSave(BaseModel):
     tags: List[TagCreate]
 
 
+class OpcuaTestRequest(BaseModel):
+    endpoint_url: str
+    username: Optional[str] = ""
+    password: Optional[str] = ""
+
+
+class InfluxTestRequest(BaseModel):
+    url: str
+    token: str
+    org: str
+
+
 class OpcuaNodeOut(BaseModel):
     node_id: str
     namespace: int

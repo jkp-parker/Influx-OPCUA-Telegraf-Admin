@@ -5,6 +5,7 @@ from database import get_db
 import models
 import schemas
 from services import opcua_service
+from schemas import OpcuaTestRequest
 
 router = APIRouter(prefix="/devices", tags=["devices"])
 
@@ -44,6 +45,12 @@ def create_device(payload: schemas.DeviceCreate, db: Session = Depends(get_db)):
     out.tag_count = 0
     out.enabled_tag_count = 0
     return out
+
+
+@router.post("/test-connection")
+def test_connection_unsaved(payload: OpcuaTestRequest):
+    """Test an OPC UA connection without saving the device first."""
+    return opcua_service.test_connection(payload.endpoint_url, payload.username or "", payload.password or "")
 
 
 @router.get("/{device_id}", response_model=schemas.DeviceOut)
