@@ -20,8 +20,8 @@ version: "3.9"
 #    1. Open http://localhost:9077
 #    2. Follow the Setup wizard and enter:
 #         InfluxDB URL   : http://influxdb:8181
+#         Token          : apiv3_opcua-demo-admin-token-local-dev-only-00000000
 #         Database       : opcua
-#         Token          : (leave blank — auth is disabled in this demo)
 #    3. Add an OPC UA device:
 #         Endpoint URL   : opc.tcp://opc-ua-sim:49947
 #    4. Browse / scan nodes and enable the tags you want.
@@ -64,7 +64,9 @@ services:
   # ── InfluxDB 3.x (Core) ──────────────────────────────────────────────────────
   #  InfluxDB 3 Core — high-performance time-series engine with SQL + InfluxQL.
   #  NOTE: v3 has no org/user concept — data lives in named databases.
-  #  Auth is disabled for this demo (no INFLUXDB3_AUTH_TOKEN set).
+  #  Auth is enabled via a preconfigured admin token (influxdb/admin-token.json).
+  #  Token must start with "apiv3_". See:
+  #  https://docs.influxdata.com/influxdb3/core/admin/tokens/admin/preconfigured/
   #  The influxdb-init service creates the "opcua" database on first start.
   influxdb:
     image: influxdb:3-core
@@ -82,12 +84,14 @@ services:
       - --object-store=file
       - --data-dir=/var/lib/influxdb3/data
       - --plugin-dir=/var/lib/influxdb3/plugins
+      - --admin-token-file=/run/influxdb3/admin-token.json
     volumes:
       - influxdb_data:/var/lib/influxdb3/data
+      - ./influxdb/admin-token.json:/run/influxdb3/admin-token.json:ro
     networks:
       - opcua-net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8181/health"]
+      test: ["CMD", "curl", "-f", "-H", "Authorization: Bearer apiv3_opcua-demo-admin-token-local-dev-only-00000000", "http://localhost:8181/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -103,6 +107,7 @@ services:
         condition: service_healthy
     environment:
       INFLUX_HOST: http://influxdb:8181
+      INFLUX_TOKEN: apiv3_opcua-demo-admin-token-local-dev-only-00000000
       INFLUX_DATABASE: opcua
     entrypoint: ["bash", "/scripts/01-init-database.sh"]
     volumes:

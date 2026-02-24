@@ -1,0 +1,6 @@
+{
+  "token": "apiv3_opcua-demo-admin-token-local-dev-only-00000000",
+  "name": "_admin",
+  "description": "Preconfigured admin token for the OPC UA Telegraf Admin demo stack. Change before any non-local deployment.",
+  "expiry_millis": 4102444800000
+}
