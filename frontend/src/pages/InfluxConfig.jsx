@@ -6,7 +6,7 @@ import {
 import Modal from '../components/Modal'
 import {
   listInfluxConfigs, createInfluxConfig, updateInfluxConfig,
-  deleteInfluxConfig, testInfluxConfig, listBuckets,
+  deleteInfluxConfig, testInfluxConfig, testInfluxConnectionRaw, listBuckets,
 } from '../services/api'
 
 const EMPTY = { name: '', url: 'http://influxdb:8086', token: '', org: '', bucket: '', is_default: false }
@@ -19,6 +19,8 @@ export default function InfluxConfig() {
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [modalTesting, setModalTesting] = useState(false)
+  const [modalTestResult, setModalTestResult] = useState(null)
   const [testResults, setTestResults] = useState({})
   const [testingId, setTestingId] = useState(null)
   const [buckets, setBuckets] = useState({})
@@ -29,10 +31,10 @@ export default function InfluxConfig() {
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
-  const openAdd = () => { setForm(EMPTY); setEditTarget(null); setError(''); setModal('form') }
+  const openAdd = () => { setForm(EMPTY); setEditTarget(null); setError(''); setModalTestResult(null); setModal('form') }
   const openEdit = (cfg) => {
     setForm({ name: cfg.name, url: cfg.url, token: cfg.token, org: cfg.org, bucket: cfg.bucket, is_default: cfg.is_default })
-    setEditTarget(cfg); setError(''); setModal('form')
+    setEditTarget(cfg); setError(''); setModalTestResult(null); setModal('form')
   }
 
   const handleSave = async () => {
@@ -72,6 +74,21 @@ export default function InfluxConfig() {
     } catch (e) {
       setBuckets(b => ({ ...b, [id]: [] }))
     } finally { setLoadingBuckets(null) }
+  }
+
+  const handleModalTest = async () => {
+    if (!form.url || !form.token || !form.org) {
+      setModalTestResult({ success: false, message: 'Enter URL, token and organisation first' }); return
+    }
+    setModalTesting(true); setModalTestResult(null)
+    try {
+      const result = await testInfluxConnectionRaw({ url: form.url, token: form.token, org: form.org })
+      setModalTestResult(result)
+    } catch {
+      setModalTestResult({ success: false, message: 'Request failed' })
+    } finally {
+      setModalTesting(false)
+    }
   }
 
   if (loading) return (
@@ -206,12 +223,24 @@ export default function InfluxConfig() {
             <label htmlFor="is_default" className="text-sm text-gray-700">Set as default for new devices</label>
           </div>
         </div>
+        {modalTestResult && (
+          <div className={`mt-3 text-sm flex items-center gap-1.5 ${modalTestResult.success ? 'text-green-600' : 'text-red-600'}`}>
+            {modalTestResult.success ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
+            {modalTestResult.message}
+          </div>
+        )}
         {error && <p className="text-sm text-red-600 mt-3 flex items-center gap-1"><AlertCircle size={14} />{error}</p>}
-        <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-gray-100">
-          <button onClick={() => setModal(null)} className="btn-secondary">Cancel</button>
-          <button onClick={handleSave} disabled={saving} className="btn-primary">
-            {saving && <Loader2 size={14} className="animate-spin" />} Save
+        <div className="flex justify-between gap-2 mt-5 pt-4 border-t border-gray-100">
+          <button onClick={handleModalTest} disabled={modalTesting} className="btn-secondary">
+            {modalTesting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+            Test Connection
           </button>
+          <div className="flex gap-2">
+            <button onClick={() => setModal(null)} className="btn-secondary">Cancel</button>
+            <button onClick={handleSave} disabled={saving} className="btn-primary">
+              {saving && <Loader2 size={14} className="animate-spin" />} Save
+            </button>
+          </div>
         </div>
       </Modal>
     </div>

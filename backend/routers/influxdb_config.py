@@ -4,6 +4,7 @@ from database import get_db
 import models
 import schemas
 from services import influxdb_service
+from schemas import InfluxTestRequest
 
 router = APIRouter(prefix="/influxdb", tags=["influxdb"])
 
@@ -34,6 +35,12 @@ def create_config(payload: schemas.InfluxDBConfigCreate, db: Session = Depends(g
     out = schemas.InfluxDBConfigOut.model_validate(cfg)
     out.device_count = 0
     return out
+
+
+@router.post("/test-connection")
+def test_connection_unsaved(payload: InfluxTestRequest):
+    """Test an InfluxDB connection without saving the config first."""
+    return influxdb_service.test_connection(payload.url, payload.token, payload.org)
 
 
 @router.get("/{cfg_id}", response_model=schemas.InfluxDBConfigOut)
