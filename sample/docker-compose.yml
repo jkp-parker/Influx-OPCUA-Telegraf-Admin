@@ -5,13 +5,15 @@ version: "3.9"
 #
 #  This compose file spins up a complete end-to-end demo environment:
 #
-#    opc-plc   →  Telegraf (OPC UA input)  →  InfluxDB 2.x
+#    opc-plc   →  Telegraf (OPC UA input)  →  InfluxDB 2.x  →  Grafana
 #                                               ↑
 #                              Admin Portal (backend + frontend)
 #
 #  Access:
 #    • Admin Portal  : http://localhost:9077
+#    • Grafana       : http://localhost:3000  (admin / grafanapassword)
 #    • InfluxDB UI   : http://localhost:8086  (admin / influxpassword)
+#                                         or  (demo  / demopassword)
 #    • OPC PLC       : opc.tcp://localhost:50000
 #
 #  First-run setup inside the Admin Portal:
@@ -59,6 +61,8 @@ services:
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: my-super-secret-admin-token
     volumes:
       - influxdb_data:/var/lib/influxdb2
+      # Init script runs once after first-time setup to create the demo user
+      - ./influxdb/init:/docker-entrypoint-initdb.d:ro
     networks:
       - opcua-net
     healthcheck:
@@ -83,6 +87,42 @@ services:
       - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
     networks:
       - opcua-net
+
+  # ── Grafana ───────────────────────────────────────────────────────────────────
+  #  Dashboards and visualisation for InfluxDB data.
+  #  The InfluxDB datasource (Flux) is auto-provisioned on first start.
+  #
+  #  Accounts:
+  #    admin / grafanapassword  — full admin access
+  #    (anonymous viewers can browse dashboards without logging in)
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Admin account
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: grafanapassword
+      # Allow anonymous read-only access for demo convenience
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      # Disable sign-up to keep the demo clean
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    networks:
+      - opcua-net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # ── Admin Portal — FastAPI backend ──────────────────────────────────────────
   backend:
@@ -124,6 +164,8 @@ services:
 
 volumes:
   influxdb_data:
+    driver: local
+  grafana_data:
     driver: local
   opcua_data:
     driver: local
