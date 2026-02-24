@@ -20,6 +20,9 @@ frontend/.vite/
 # Docker
 .docker/
 
+# Backend static dir (populated during Docker build from frontend dist, not tracked)
+backend/static/
+
 # OS
 .DS_Store
 Thumbs.db
