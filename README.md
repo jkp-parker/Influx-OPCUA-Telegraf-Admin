@@ -79,7 +79,7 @@ cd Influx-OPCUA-Telegraf-Admin
 docker compose up -d --build
 ```
 
-Open **http://localhost:3000** in your browser. The first run redirects you through the setup wizard.
+Open **http://localhost:9077** in your browser. The first run redirects you through the setup wizard.
 
 ---
 
@@ -261,7 +261,7 @@ npm run dev          # starts on http://localhost:5173, proxies /api → :8000
 
 | Port | Service |
 |---|---|
-| `3000` | Web UI (nginx, production build) |
+| `9077` | Web UI (nginx, production build) |
 | `8000` | FastAPI REST API (also exposed for debugging) |
 
 To restrict the backend to internal traffic only, remove the `ports` entry for `backend` in `docker-compose.yml` and access it only through the nginx proxy.
