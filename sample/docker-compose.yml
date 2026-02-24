@@ -1,0 +1,133 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  OPC UA Telegraf Admin — Full Sample Stack
+#
+#  This compose file spins up a complete end-to-end demo environment:
+#
+#    opc-plc   →  Telegraf (OPC UA input)  →  InfluxDB 2.x
+#                                               ↑
+#                              Admin Portal (backend + frontend)
+#
+#  Access:
+#    • Admin Portal  : http://localhost:9077
+#    • InfluxDB UI   : http://localhost:8086  (admin / influxpassword)
+#    • OPC PLC       : opc.tcp://localhost:50000
+#
+#  First-run setup inside the Admin Portal:
+#    1. Open http://localhost:9077
+#    2. Follow the Setup wizard and enter:
+#         InfluxDB URL   : http://influxdb:8086
+#         Token          : my-super-secret-admin-token
+#         Org            : opcua-demo
+#         Bucket         : opcua
+#    3. Add an OPC UA device:
+#         Endpoint URL   : opc.tcp://opc-plc:50000
+#    4. Browse / scan nodes and enable the tags you want.
+#    5. Download or apply the generated telegraf.conf.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Microsoft OPC UA PLC Simulator ──────────────────────────────────────────
+  #  Exposes simulated industrial data (random values, trends, spikes, etc.)
+  #  Endpoint: opc.tcp://opc-plc:50000
+  opc-plc:
+    image: mcr.microsoft.com/iotedge/opc-plc:latest
+    container_name: opc-plc
+    restart: unless-stopped
+    command: --pn=50000 --autoaccept --sph --wp=8080
+    ports:
+      - "50000:50000"   # OPC UA endpoint
+      - "8080:8080"     # OPC PLC web/config interface
+    networks:
+      - opcua-net
+
+  # ── InfluxDB 2.x ────────────────────────────────────────────────────────────
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: influxpassword
+      DOCKER_INFLUXDB_INIT_ORG: opcua-demo
+      DOCKER_INFLUXDB_INIT_BUCKET: opcua
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: my-super-secret-admin-token
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    networks:
+      - opcua-net
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Telegraf ─────────────────────────────────────────────────────────────────
+  #  Reads data from the OPC PLC server and writes to InfluxDB.
+  #  The telegraf.conf in ./telegraf/ is pre-configured for this demo stack.
+  telegraf:
+    image: telegraf:1.30
+    container_name: telegraf
+    restart: unless-stopped
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      opc-plc:
+        condition: service_started
+    volumes:
+      - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    networks:
+      - opcua-net
+
+  # ── Admin Portal — FastAPI backend ──────────────────────────────────────────
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: opcua-admin-backend
+    restart: unless-stopped
+    volumes:
+      - opcua_data:/app/data
+    environment:
+      DATABASE_URL: sqlite:////app/data/opcua_admin.db
+    networks:
+      - opcua-net
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/metrics')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      influxdb:
+        condition: service_healthy
+
+  # ── Admin Portal — React frontend (nginx) ───────────────────────────────────
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: opcua-admin-frontend
+    restart: unless-stopped
+    ports:
+      - "9077:80"
+    depends_on:
+      - backend
+    networks:
+      - opcua-net
+
+volumes:
+  influxdb_data:
+    driver: local
+  opcua_data:
+    driver: local
+
+networks:
+  opcua-net:
+    driver: bridge

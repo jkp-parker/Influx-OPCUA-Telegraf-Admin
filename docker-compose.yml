@@ -45,7 +45,7 @@ services:
     container_name: opcua-admin-frontend
     restart: unless-stopped
     ports:
-      - "3000:80"
+      - "9077:80"
     depends_on:
       - backend
     networks:
