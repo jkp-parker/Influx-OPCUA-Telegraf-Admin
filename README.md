@@ -74,8 +74,8 @@ This portal sits alongside your existing data infrastructure and acts as the con
 ### Run
 
 ```bash
-git clone https://github.com/jkp-parker/Influx-OPCUA-Telegraf-Admin.git
-cd Influx-OPCUA-Telegraf-Admin
+git clone https://github.com/jkp-parker/FluxForge.git
+cd FuxForge
 docker compose up -d --build
 ```
 
