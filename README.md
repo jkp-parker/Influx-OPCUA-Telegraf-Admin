@@ -1,4 +1,4 @@
-# Influx-OPCUA-Telegraf-Admin
+# FluxForge
 
 A self-contained Docker web application for **configuring and managing the ingestion of OPC UA data into InfluxDB via Telegraf**.
 
