@@ -75,7 +75,7 @@ This portal sits alongside your existing data infrastructure and acts as the con
 
 ```bash
 git clone https://github.com/jkp-parker/FluxForge.git
-cd FuxForge
+cd FluxForge
 docker compose up -d --build
 ```
 
