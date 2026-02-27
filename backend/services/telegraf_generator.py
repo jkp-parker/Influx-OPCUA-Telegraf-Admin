@@ -4,6 +4,7 @@ from typing import List, Dict, Any
 def generate_config(
     devices: List[Any],
     system_config: Dict[str, str],
+    default_influxdb: Any = None,
 ) -> str:
     """Generate a Telegraf configuration file from device and tag data."""
 
@@ -41,6 +42,8 @@ def generate_config(
         if device.influxdb_config:
             cfg = device.influxdb_config
             influx_targets[cfg.id] = cfg
+        elif default_influxdb:
+            influx_targets[default_influxdb.id] = default_influxdb
 
     if not influx_targets:
         # Use system-level defaults

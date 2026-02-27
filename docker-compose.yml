@@ -1,57 +1,32 @@
 # ─────────────────────────────────────────────────────────────────────────────
 #  FluxForge — docker-compose
 #
-#  This stack contains ONLY the administration portal (API backend + web UI).
-#  It does NOT include an InfluxDB or Telegraf instance — those are expected
-#  to be running separately in your environment.  Point the portal at your
-#  existing instances during the first-run setup wizard.
+#  Single-container stack: FastAPI backend + React frontend served by nginx.
+#  Does NOT include InfluxDB or Telegraf — point the portal at your existing
+#  instances during the first-run setup wizard.
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
 
-  # ── FastAPI backend ──────────────────────────────────────────────────────────
-  backend:
+  fluxforge:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
-    container_name: fluxforge-backend
+    container_name: fluxforge
     restart: unless-stopped
     volumes:
       # Persist the SQLite configuration database between restarts
-      - opcua_data:/app/data
-      # Optional: mount your Telegraf config directory so the portal can
-      # write the generated telegraf.conf directly into place.
-      # - /etc/telegraf:/etc/telegraf
+      - fluxforge_data:/app/data
     environment:
       DATABASE_URL: sqlite:////app/data/opcua_admin.db
-    networks:
-      - opcua-net
     ports:
-      - "8000:8000"
+      - "9077:9077"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/metrics')"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  # ── React frontend (nginx) ───────────────────────────────────────────────────
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: fluxforge-frontend
-    restart: unless-stopped
-    ports:
-      - "9077:80"
-    depends_on:
-      - backend
-    networks:
-      - opcua-net
-
 volumes:
-  opcua_data:
+  fluxforge_data:
     driver: local
-
-networks:
-  opcua-net:
-    driver: bridge

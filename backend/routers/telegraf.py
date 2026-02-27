@@ -16,18 +16,26 @@ def _load_devices(db: Session):
     ).filter(models.Device.enabled == True).order_by(models.Device.name).all()
 
 
+def _get_default_influxdb(db: Session):
+    return db.query(models.InfluxDBConfig).filter(
+        models.InfluxDBConfig.is_default == True
+    ).first()
+
+
 @router.get("/config", response_class=PlainTextResponse)
 def get_config(db: Session = Depends(get_db)):
     devices = _load_devices(db)
     system_cfg = _get_config_dict(db)
-    return telegraf_generator.generate_config(devices, system_cfg)
+    default_influx = _get_default_influxdb(db)
+    return telegraf_generator.generate_config(devices, system_cfg, default_influx)
 
 
 @router.get("/config/download")
 def download_config(db: Session = Depends(get_db)):
     devices = _load_devices(db)
     system_cfg = _get_config_dict(db)
-    content = telegraf_generator.generate_config(devices, system_cfg)
+    default_influx = _get_default_influxdb(db)
+    content = telegraf_generator.generate_config(devices, system_cfg, default_influx)
     return Response(
         content=content,
         media_type="text/plain",
