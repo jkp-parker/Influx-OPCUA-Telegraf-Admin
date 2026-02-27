@@ -1,13 +1,9 @@
-version: "3.9"
-
 # ─────────────────────────────────────────────────────────────────────────────
 #  FluxForge — Full Sample Stack
 #
-#  This compose file spins up the full sample stack:
-#
 #    Telegraf (OPC UA input)  →  InfluxDB 3.x  →  Grafana
 #                                  ↑
-#                   Admin Portal (backend + frontend)
+#                        FluxForge Admin Portal
 #
 #  Access:
 #    • Admin Portal  : http://localhost:9077
@@ -171,21 +167,22 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── Admin Portal — FastAPI backend ──────────────────────────────────────────
-  backend:
+  # ── FluxForge Admin Portal ──────────────────────────────────────────────────
+  #  Single container: FastAPI backend + React frontend behind nginx.
+  fluxforge:
     build:
-      context: ../backend
+      context: ..
       dockerfile: Dockerfile
-    container_name: fluxforge-backend
+    container_name: fluxforge
     restart: unless-stopped
     volumes:
-      - opcua_data:/app/data
+      - fluxforge_data:/app/data
     environment:
       DATABASE_URL: sqlite:////app/data/opcua_admin.db
     networks:
       - opcua-net
     ports:
-      - "8000:8000"
+      - "9077:9077"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/metrics')"]
       interval: 30s
@@ -195,26 +192,12 @@ services:
       influxdb:
         condition: service_healthy
 
-  # ── Admin Portal — React frontend (nginx) ───────────────────────────────────
-  frontend:
-    build:
-      context: ../frontend
-      dockerfile: Dockerfile
-    container_name: fluxforge-frontend
-    restart: unless-stopped
-    ports:
-      - "9077:80"
-    depends_on:
-      - backend
-    networks:
-      - opcua-net
-
 volumes:
   influxdb_data:
     driver: local
   grafana_data:
     driver: local
-  opcua_data:
+  fluxforge_data:
     driver: local
 
 networks:

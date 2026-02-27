@@ -9,8 +9,7 @@ the supporting infrastructure for the FluxForge admin portal:
 | **influxdb-explorer** | `influxdata/influxdb3-ui:1.6.2` | Web UI for querying and managing InfluxDB 3 |
 | **telegraf** | `telegraf:1.30` | Reads OPC UA nodes and writes to InfluxDB |
 | **grafana** | `grafana/grafana:10.4.2` | Dashboards and visualisation (InfluxDB datasource pre-provisioned) |
-| **backend** | *(built locally)* | FastAPI admin portal API |
-| **frontend** | *(built locally)* | React admin portal UI |
+| **fluxforge** | *(built locally)* | Admin portal — FastAPI + React + nginx in a single container |
 
 > **InfluxDB 3 vs 2 — key differences:**
 > - Port changed from `8086` → `8181`
@@ -161,8 +160,8 @@ docker compose down -v       # also delete persisted data volumes
 └──────────────────────────┘  └──────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────┐
-│  Admin Portal                                            │
-│  frontend (port 9077)  ←→  backend (port 8000)           │
+│  fluxforge  (port 9077)                                  │
+│  FastAPI + React + nginx — single container              │
 │  • Manage devices, scan classes, InfluxDB targets        │
 │  • Generate & download telegraf.conf                     │
 └──────────────────────────────────────────────────────────┘
