@@ -1,7 +1,5 @@
-version: "3.9"
-
 # ─────────────────────────────────────────────────────────────────────────────
-#  OPC UA Telegraf Admin — docker-compose
+#  FluxForge — docker-compose
 #
 #  This stack contains ONLY the administration portal (API backend + web UI).
 #  It does NOT include an InfluxDB or Telegraf instance — those are expected
@@ -16,7 +14,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: opcua-admin-backend
+    container_name: fluxforge-backend
     restart: unless-stopped
     volumes:
       # Persist the SQLite configuration database between restarts
@@ -28,7 +26,6 @@ services:
       DATABASE_URL: sqlite:////app/data/opcua_admin.db
     networks:
       - opcua-net
-    # Expose backend directly for development/debugging (remove in production)
     ports:
       - "8000:8000"
     healthcheck:
@@ -42,7 +39,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: opcua-admin-frontend
+    container_name: fluxforge-frontend
     restart: unless-stopped
     ports:
       - "9077:80"

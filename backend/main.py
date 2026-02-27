@@ -4,15 +4,31 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import os
 
+from sqlalchemy import inspect, text
 from database import engine, Base
 import models  # noqa: F401 — ensures all models are registered
 from routers import system, devices, scan_classes, influxdb_config, metrics, telegraf
+from services.opcua_certs import ensure_certs_exist
 
 # Create all tables
 Base.metadata.create_all(bind=engine)
 
+# Lightweight migrations for new columns on existing tables (SQLite)
+def _migrate():
+    insp = inspect(engine)
+    if "scan_classes" in insp.get_table_names():
+        cols = [c["name"] for c in insp.get_columns("scan_classes")]
+        if "is_default" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE scan_classes ADD COLUMN is_default BOOLEAN DEFAULT 0"))
+
+_migrate()
+
+# Generate OPC UA client certificate if it doesn't exist
+ensure_certs_exist()
+
 app = FastAPI(
-    title="OPC UA Telegraf Admin",
+    title="FluxForge",
     version="1.0.0",
     description="Web administration portal for managing OPC UA → Telegraf → InfluxDB pipelines",
 )

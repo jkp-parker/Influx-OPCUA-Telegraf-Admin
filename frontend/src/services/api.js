@@ -38,6 +38,8 @@ export const listScanClasses = () => api.get('/scan-classes').then(r => r.data)
 export const createScanClass = (data) => api.post('/scan-classes', data).then(r => r.data)
 export const updateScanClass = (id, data) => api.put(`/scan-classes/${id}`, data).then(r => r.data)
 export const deleteScanClass = (id) => api.delete(`/scan-classes/${id}`).then(r => r.data)
+export const setDefaultScanClass = (id) => api.post(`/scan-classes/${id}/set-default`).then(r => r.data)
+export const clearDefaultScanClass = (id) => api.post(`/scan-classes/${id}/clear-default`).then(r => r.data)
 
 // InfluxDB Configs
 export const listInfluxConfigs = () => api.get('/influxdb').then(r => r.data)

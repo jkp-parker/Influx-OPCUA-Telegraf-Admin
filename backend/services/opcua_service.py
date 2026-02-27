@@ -1,8 +1,20 @@
 import asyncio
+import logging
 from typing import Optional, List, Dict
 
+from services.opcua_certs import get_cert_path, get_key_path
 
-async def _run_async(coro):
+logger = logging.getLogger(__name__)
+
+# Security policies that require certificates and encryption.
+_SECURE_POLICIES = {
+    "Basic256Sha256",
+    "Aes128_Sha256_RsaOaep",
+    "Aes256_Sha256_RsaPss",
+}
+
+
+def _run_async(coro):
     """Run an async coroutine from sync context."""
     loop = asyncio.new_event_loop()
     try:
@@ -11,19 +23,33 @@ async def _run_async(coro):
         loop.close()
 
 
-async def _test_connection_async(endpoint_url: str, username: str = "", password: str = "") -> dict:
+async def _configure_client(client, security_policy: str, username: str, password: str) -> None:
+    """Apply security policy and credentials to an asyncua Client before connecting."""
+    if security_policy and security_policy in _SECURE_POLICIES:
+        security_string = f"{security_policy},SignAndEncrypt,{get_cert_path()},{get_key_path()}"
+        await client.set_security_string(security_string)
+    if username and password:
+        client.set_user(username)
+        client.set_password(password)
+
+
+async def _test_connection_async(
+    endpoint_url: str,
+    username: str = "",
+    password: str = "",
+    security_policy: str = "None",
+) -> dict:
     try:
         from asyncua import Client
-        client = Client(url=endpoint_url, timeout=5)
-        if username and password:
-            client.set_user(username)
-            client.set_password(password)
+        client = Client(url=endpoint_url, timeout=10)
+        await _configure_client(client, security_policy, username, password)
         async with client:
             name = await client.get_server_node().read_display_name()
             return {"success": True, "message": f"Connected: {name.Text}"}
     except ImportError:
         return {"success": False, "message": "asyncua library not installed"}
     except Exception as e:
+        logger.exception("OPC UA connection test failed")
         return {"success": False, "message": str(e)}
 
 
@@ -32,15 +58,14 @@ async def _browse_node_async(
     node_id: Optional[str],
     username: str = "",
     password: str = "",
+    security_policy: str = "None",
 ) -> List[Dict]:
     try:
         from asyncua import Client
         from asyncua.ua import NodeClass
 
         client = Client(url=endpoint_url, timeout=15)
-        if username and password:
-            client.set_user(username)
-            client.set_password(password)
+        await _configure_client(client, security_policy, username, password)
 
         async with client:
             if node_id:
@@ -116,6 +141,7 @@ async def _scan_all_variables_async(
     endpoint_url: str,
     username: str = "",
     password: str = "",
+    security_policy: str = "None",
     max_depth: int = 8,
 ) -> List[Dict]:
     try:
@@ -123,9 +149,7 @@ async def _scan_all_variables_async(
         from asyncua.ua import NodeClass
 
         client = Client(url=endpoint_url, timeout=60)
-        if username and password:
-            client.set_user(username)
-            client.set_password(password)
+        await _configure_client(client, security_policy, username, password)
 
         variables = []
 
@@ -195,13 +219,13 @@ async def _scan_all_variables_async(
         raise RuntimeError(f"Scan failed: {e}")
 
 
-def test_connection(endpoint_url: str, username: str = "", password: str = "") -> dict:
-    return _run_async(_test_connection_async(endpoint_url, username, password))
+def test_connection(endpoint_url: str, username: str = "", password: str = "", security_policy: str = "None") -> dict:
+    return _run_async(_test_connection_async(endpoint_url, username, password, security_policy))
 
 
-def browse_node(endpoint_url: str, node_id: Optional[str] = None, username: str = "", password: str = "") -> List[Dict]:
-    return _run_async(_browse_node_async(endpoint_url, node_id, username, password))
+def browse_node(endpoint_url: str, node_id: Optional[str] = None, username: str = "", password: str = "", security_policy: str = "None") -> List[Dict]:
+    return _run_async(_browse_node_async(endpoint_url, node_id, username, password, security_policy))
 
 
-def scan_all_variables(endpoint_url: str, username: str = "", password: str = "", max_depth: int = 8) -> List[Dict]:
-    return _run_async(_scan_all_variables_async(endpoint_url, username, password, max_depth))
+def scan_all_variables(endpoint_url: str, username: str = "", password: str = "", security_policy: str = "None", max_depth: int = 8) -> List[Dict]:
+    return _run_async(_scan_all_variables_async(endpoint_url, username, password, security_policy, max_depth))

@@ -50,7 +50,10 @@ def create_device(payload: schemas.DeviceCreate, db: Session = Depends(get_db)):
 @router.post("/test-connection")
 def test_connection_unsaved(payload: OpcuaTestRequest):
     """Test an OPC UA connection without saving the device first."""
-    return opcua_service.test_connection(payload.endpoint_url, payload.username or "", payload.password or "")
+    return opcua_service.test_connection(
+        payload.endpoint_url, payload.username or "", payload.password or "",
+        security_policy=payload.security_policy or "None",
+    )
 
 
 @router.get("/{device_id}", response_model=schemas.DeviceOut)
@@ -111,7 +114,10 @@ def test_connection(device_id: int, db: Session = Depends(get_db)):
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
-    return opcua_service.test_connection(device.endpoint_url, device.username, device.password)
+    return opcua_service.test_connection(
+        device.endpoint_url, device.username, device.password,
+        security_policy=device.security_policy or "None",
+    )
 
 
 @router.post("/{device_id}/browse")
@@ -125,17 +131,20 @@ def browse_node(
         raise HTTPException(status_code=404, detail="Device not found")
     try:
         nodes = opcua_service.browse_node(
-            device.endpoint_url, node_id, device.username, device.password
+            device.endpoint_url, node_id, device.username, device.password,
+            security_policy=device.security_policy or "None",
         )
         return {"nodes": nodes}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def _do_scan(device_id: int, endpoint_url: str, username: str, password: str):
+def _do_scan(device_id: int, endpoint_url: str, username: str, password: str, security_policy: str = "None"):
     _scan_cache[device_id] = {"status": "scanning", "nodes": [], "error": None}
     try:
-        nodes = opcua_service.scan_all_variables(endpoint_url, username, password)
+        nodes = opcua_service.scan_all_variables(
+            endpoint_url, username, password, security_policy=security_policy,
+        )
         _scan_cache[device_id] = {"status": "complete", "nodes": nodes, "error": None}
     except Exception as e:
         _scan_cache[device_id] = {"status": "error", "nodes": [], "error": str(e)}
@@ -149,7 +158,10 @@ def start_scan(device_id: int, background_tasks: BackgroundTasks, db: Session = 
     existing = _scan_cache.get(device_id, {})
     if existing.get("status") == "scanning":
         return {"status": "scanning", "message": "Scan already in progress"}
-    background_tasks.add_task(_do_scan, device_id, device.endpoint_url, device.username, device.password)
+    background_tasks.add_task(
+        _do_scan, device_id, device.endpoint_url, device.username, device.password,
+        security_policy=device.security_policy or "None",
+    )
     _scan_cache[device_id] = {"status": "scanning", "nodes": [], "error": None}
     return {"status": "scanning", "message": "Scan started"}
 

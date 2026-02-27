@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import {
-  ArrowLeft, ChevronRight, ChevronDown, Tag, Search, Filter, Loader2,
+  ArrowLeft, ChevronRight, ChevronDown, Tag, Search, Loader2,
   RefreshCw, Save, CheckSquare, Square, AlertCircle, CheckCircle,
-  SortAsc, SortDesc, Sliders,
+  SortAsc, SortDesc, ExternalLink,
 } from 'lucide-react'
 import {
   getDevice, getDeviceTags, saveDeviceTags, listScanClasses,
@@ -38,17 +38,17 @@ function TreeNode({ node, deviceId, onSelect, scanClasses, savedNodeIds }) {
 
   return (
     <div>
-      <div className="flex items-center gap-1 py-0.5 px-2 rounded hover:bg-gray-100 group">
+      <div className="flex items-center gap-1 py-0.5 px-2 rounded hover:bg-gray-800 group">
         {node.is_variable ? (
           <span className="w-4 flex-shrink-0" />
         ) : (
-          <button onClick={expand} className="w-4 h-4 flex-shrink-0 text-gray-400 hover:text-gray-700">
+          <button onClick={expand} className="w-4 h-4 flex-shrink-0 text-gray-500 hover:text-gray-300">
             {loading ? <Loader2 size={12} className="animate-spin" /> :
               open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           </button>
         )}
-        <Tag size={12} className={`flex-shrink-0 ${node.is_variable ? 'text-blue-500' : 'text-gray-400'}`} />
-        <span className={`text-sm flex-1 ${node.is_variable ? 'text-gray-800' : 'text-gray-600'}`}>
+        <Tag size={12} className={`flex-shrink-0 ${node.is_variable ? 'text-blue-400' : 'text-gray-500'}`} />
+        <span className={`text-sm flex-1 ${node.is_variable ? 'text-gray-200' : 'text-gray-400'}`}>
           {node.display_name}
         </span>
         {node.is_variable && (
@@ -61,12 +61,12 @@ function TreeNode({ node, deviceId, onSelect, scanClasses, savedNodeIds }) {
         )}
       </div>
       {open && children && (
-        <div className="ml-5 border-l border-gray-200 pl-1">
+        <div className="ml-5 border-l border-gray-700 pl-1">
           {children.map(child => (
             <TreeNode key={child.node_id} node={child} deviceId={deviceId}
               onSelect={onSelect} scanClasses={scanClasses} savedNodeIds={savedNodeIds} />
           ))}
-          {children.length === 0 && <p className="text-xs text-gray-400 py-1 px-2">No children</p>}
+          {children.length === 0 && <p className="text-xs text-gray-500 py-1 px-2">No children</p>}
         </div>
       )}
     </div>
@@ -127,8 +127,8 @@ function ScanResults({ nodes, deviceId, scanClasses, savedNodeIds, onAddTags }) 
   }
 
   const SortIcon = ({ k }) => {
-    if (sortKey !== k) return <SortAsc size={12} className="text-gray-300" />
-    return sortDir === 'asc' ? <SortAsc size={12} className="text-blue-500" /> : <SortDesc size={12} className="text-blue-500" />
+    if (sortKey !== k) return <SortAsc size={12} className="text-gray-600" />
+    return sortDir === 'asc' ? <SortAsc size={12} className="text-blue-400" /> : <SortDesc size={12} className="text-blue-400" />
   }
 
   return (
@@ -136,7 +136,7 @@ function ScanResults({ nodes, deviceId, scanClasses, savedNodeIds, onAddTags }) 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-48">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
           <input className="input pl-8 py-1.5 text-sm" value={search}
             onChange={e => setSearch(e.target.value)} placeholder="Search tags…" />
         </div>
@@ -153,8 +153,8 @@ function ScanResults({ nodes, deviceId, scanClasses, savedNodeIds, onAddTags }) 
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
-        <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-          <span className="text-sm font-medium text-blue-700">{selected.size} selected</span>
+        <div className="flex items-center gap-3 p-3 bg-blue-900/30 rounded-lg border border-blue-800">
+          <span className="text-sm font-medium text-blue-400">{selected.size} selected</span>
           <select className="input py-1 text-sm w-44" value={bulkScanClass}
             onChange={e => setBulkScanClass(e.target.value)}>
             <option value="">No scan class</option>
@@ -170,13 +170,13 @@ function ScanResults({ nodes, deviceId, scanClasses, savedNodeIds, onAddTags }) 
       <div className="card overflow-hidden">
         <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
+            <thead className="bg-gray-800/50 border-b border-gray-700 sticky top-0">
               <tr>
                 <th className="table-th w-8">
                   <button onClick={toggleAll}>
                     {selected.size === filtered.length && filtered.length > 0
-                      ? <CheckSquare size={14} className="text-blue-600" />
-                      : <Square size={14} className="text-gray-400" />}
+                      ? <CheckSquare size={14} className="text-blue-400" />
+                      : <Square size={14} className="text-gray-500" />}
                   </button>
                 </th>
                 <th className="table-th cursor-pointer" onClick={() => toggleSort('display_name')}>
@@ -195,22 +195,22 @@ function ScanResults({ nodes, deviceId, scanClasses, savedNodeIds, onAddTags }) 
                 <th className="table-th">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-800">
               {filtered.map(node => (
                 <tr key={node.node_id}
-                  className={`hover:bg-gray-50 cursor-pointer ${selected.has(node.node_id) ? 'bg-blue-50' : ''}`}
+                  className={`hover:bg-gray-800/50 cursor-pointer ${selected.has(node.node_id) ? 'bg-blue-900/20' : ''}`}
                   onClick={() => toggleSelect(node.node_id)}
                 >
                   <td className="table-td">
                     {selected.has(node.node_id)
-                      ? <CheckSquare size={14} className="text-blue-600" />
-                      : <Square size={14} className="text-gray-400" />}
+                      ? <CheckSquare size={14} className="text-blue-400" />
+                      : <Square size={14} className="text-gray-500" />}
                   </td>
-                  <td className="table-td font-medium">{node.display_name}</td>
-                  <td className="table-td text-gray-500 text-xs font-mono max-w-xs truncate">{node.path}</td>
+                  <td className="table-td font-medium text-gray-200">{node.display_name}</td>
+                  <td className="table-td text-gray-400 text-xs font-mono max-w-xs truncate" title={node.path}>{node.path}</td>
                   <td className="table-td text-center"><span className="badge badge-gray">{node.namespace}</span></td>
-                  <td className="table-td font-mono text-xs text-gray-500 max-w-xs truncate">{node.identifier}</td>
-                  <td className="table-td text-xs text-gray-500">{node.data_type || '—'}</td>
+                  <td className="table-td font-mono text-xs text-gray-400 max-w-xs truncate" title={node.identifier}>{node.identifier}</td>
+                  <td className="table-td text-xs text-gray-400">{node.data_type || '—'}</td>
                   <td className="table-td">
                     {savedNodeIds.has(node.node_id)
                       ? <span className="badge badge-green">Saved</span>
@@ -219,7 +219,7 @@ function ScanResults({ nodes, deviceId, scanClasses, savedNodeIds, onAddTags }) 
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={7} className="table-td text-center text-gray-400 py-8">No tags match the filter</td></tr>
+                <tr><td colSpan={7} className="table-td text-center text-gray-500 py-8">No tags match the filter</td></tr>
               )}
             </tbody>
           </table>
@@ -259,21 +259,26 @@ function SavedTags({ deviceId, tags, scanClasses, onRefresh }) {
   }
 
   const SortIcon = ({ k }) => sortKey === k
-    ? (sortDir === 'asc' ? <SortAsc size={12} className="text-blue-500" /> : <SortDesc size={12} className="text-blue-500" />)
-    : <SortAsc size={12} className="text-gray-300" />
+    ? (sortDir === 'asc' ? <SortAsc size={12} className="text-blue-400" /> : <SortDesc size={12} className="text-blue-400" />)
+    : <SortAsc size={12} className="text-gray-600" />
 
   return (
     <div className="space-y-3">
-      <div className="relative w-full max-w-sm">
-        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input className="input pl-8 py-1.5 text-sm" value={search}
-          onChange={e => setSearch(e.target.value)} placeholder="Search saved tags…" />
+      <div className="flex items-center justify-between gap-3">
+        <div className="relative w-full max-w-sm">
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input className="input pl-8 py-1.5 text-sm" value={search}
+            onChange={e => setSearch(e.target.value)} placeholder="Search saved tags…" />
+        </div>
+        <Link to={`/tags?device=${deviceId}`} className="btn-secondary text-xs whitespace-nowrap">
+          <ExternalLink size={12} /> Manage All Tags
+        </Link>
       </div>
 
       <div className="card overflow-hidden">
         <div className="overflow-x-auto max-h-[65vh] overflow-y-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
+            <thead className="bg-gray-800/50 border-b border-gray-700 sticky top-0">
               <tr>
                 <th className="table-th cursor-pointer" onClick={() => toggleSort('display_name')}>
                   <span className="flex items-center gap-1">Tag Name <SortIcon k="display_name" /></span>
@@ -289,11 +294,11 @@ function SavedTags({ deviceId, tags, scanClasses, onRefresh }) {
                 <th className="table-th text-right">Remove</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-800">
               {filtered.map(tag => (
-                <tr key={tag.id} className="hover:bg-gray-50">
-                  <td className="table-td font-medium">{tag.display_name}</td>
-                  <td className="table-td text-xs text-gray-500 font-mono max-w-xs truncate">{tag.path || `ns=${tag.namespace};${tag.identifier_type}=${tag.identifier}`}</td>
+                <tr key={tag.id} className="hover:bg-gray-800/50">
+                  <td className="table-td font-medium text-gray-200">{tag.display_name}</td>
+                  <td className="table-td text-xs text-gray-400 font-mono max-w-xs truncate" title={tag.path || `ns=${tag.namespace};${tag.identifier_type}=${tag.identifier}`}>{tag.path || `ns=${tag.namespace};${tag.identifier_type}=${tag.identifier}`}</td>
                   <td className="table-td">
                     <input className="input py-0.5 text-xs w-36"
                       defaultValue={tag.measurement_name}
@@ -310,17 +315,17 @@ function SavedTags({ deviceId, tags, scanClasses, onRefresh }) {
                   </td>
                   <td className="table-td">
                     <input type="checkbox" checked={tag.enabled}
-                      onChange={e => handlePatch(tag.id, 'enabled', e.target.checked)} className="rounded" />
+                      onChange={e => handlePatch(tag.id, 'enabled', e.target.checked)} className="rounded border-gray-600 bg-gray-800 text-blue-500" />
                   </td>
                   <td className="table-td text-right">
-                    <button onClick={() => handleDelete(tag.id)} className="text-red-400 hover:text-red-600 p-1">
+                    <button onClick={() => handleDelete(tag.id)} className="text-red-400 hover:text-red-300 p-1">
                       ✕
                     </button>
                   </td>
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={6} className="table-td text-center text-gray-400 py-8">No saved tags</td></tr>
+                <tr><td colSpan={6} className="table-td text-center text-gray-500 py-8">No saved tags</td></tr>
               )}
             </tbody>
           </table>
@@ -360,7 +365,6 @@ export default function DeviceDetail() {
       setDevice(dev); setScanClasses(scs); setSavedTags(tags)
     }).finally(() => setLoading(false))
 
-    // Resume scan if in progress
     getScanStatus(deviceId).then(s => {
       if (s.status === 'complete') { setScanStatus(s); setScanNodes(s.nodes) }
       else if (s.status === 'scanning') { setScanStatus(s); startPolling() }
@@ -441,22 +445,22 @@ export default function DeviceDetail() {
     </div>
   )
 
-  if (!device) return <p className="text-red-500">Device not found</p>
+  if (!device) return <p className="text-red-400">Device not found</p>
 
   return (
-    <div className="space-y-5 max-w-7xl">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link to="/devices" className="btn-ghost py-1 px-2">
           <ArrowLeft size={16} />
         </Link>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-900">{device.name}</h1>
-          <p className="text-sm text-gray-500 font-mono mt-0.5">{device.endpoint_url}</p>
+          <h1 className="text-2xl font-bold text-gray-100">{device.name}</h1>
+          <p className="text-sm text-gray-400 font-mono mt-0.5">{device.endpoint_url}</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500">
-            <span className="font-semibold text-gray-900">{device.enabled_tag_count}</span> active tags
+          <span className="text-sm text-gray-400">
+            <span className="font-semibold text-gray-200">{device.enabled_tag_count}</span> active tags
           </span>
           <button
             onClick={handleStartScan}
@@ -472,18 +476,18 @@ export default function DeviceDetail() {
 
       {/* Scan status banner */}
       {scanStatus?.status === 'error' && (
-        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="flex items-center gap-2 p-3 bg-red-900/30 border border-red-800 rounded-lg text-sm text-red-400">
           <AlertCircle size={14} /> Scan failed: {scanStatus.error}
         </div>
       )}
       {scanStatus?.status === 'complete' && (
-        <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+        <div className="flex items-center gap-2 p-3 bg-green-900/30 border border-green-800 rounded-lg text-sm text-green-400">
           <CheckCircle size={14} /> Found {scanNodes.length} variable tags
         </div>
       )}
 
       {/* Tabs */}
-      <div className="border-b border-gray-200">
+      <div className="border-b border-gray-700">
         <nav className="flex gap-0 -mb-px">
           {[
             { id: VIEW.TREE, label: 'Browse Tree' },
@@ -495,8 +499,8 @@ export default function DeviceDetail() {
               onClick={() => setView(tab.id)}
               className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
                 view === tab.id
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-blue-500 text-blue-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-300 hover:border-gray-600'
               }`}
             >
               {tab.label}
@@ -511,10 +515,10 @@ export default function DeviceDetail() {
           {treeLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 size={24} className="animate-spin text-blue-500" />
-              <span className="ml-2 text-gray-500 text-sm">Connecting to device…</span>
+              <span className="ml-2 text-gray-400 text-sm">Connecting to device…</span>
             </div>
           ) : rootNodes?.length === 0 ? (
-            <p className="text-center text-gray-400 py-12 text-sm">No nodes found or could not connect</p>
+            <p className="text-center text-gray-500 py-12 text-sm">No nodes found or could not connect</p>
           ) : (
             <div className="space-y-0.5">
               {rootNodes?.map(node => (
@@ -530,8 +534,8 @@ export default function DeviceDetail() {
         scanStatus?.status === 'scanning' ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <Loader2 size={32} className="animate-spin text-blue-500" />
-            <p className="text-gray-500">Scanning all tags on device…</p>
-            <p className="text-xs text-gray-400">This may take a moment for large node trees</p>
+            <p className="text-gray-400">Scanning all tags on device…</p>
+            <p className="text-xs text-gray-500">This may take a moment for large node trees</p>
           </div>
         ) : scanNodes.length > 0 ? (
           <ScanResults
@@ -539,8 +543,8 @@ export default function DeviceDetail() {
             savedNodeIds={savedNodeIds} onAddTags={handleAddTags}
           />
         ) : (
-          <div className="text-center text-gray-400 py-16">
-            <RefreshCw size={32} className="mx-auto mb-3 text-gray-300" />
+          <div className="text-center text-gray-500 py-16">
+            <RefreshCw size={32} className="mx-auto mb-3 text-gray-600" />
             <p>No scan results yet.</p>
             <button onClick={handleStartScan} className="btn-primary mt-4 mx-auto">
               <RefreshCw size={14} /> Start Scan

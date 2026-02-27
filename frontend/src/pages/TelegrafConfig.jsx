@@ -33,11 +33,11 @@ export default function TelegrafConfig() {
   const lineCount = config.split('\n').length
 
   return (
-    <div className="space-y-5 max-w-5xl">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Telegraf Configuration</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-bold text-gray-100">Telegraf Configuration</h1>
+          <p className="text-sm text-gray-400 mt-1">
             Auto-generated config based on your devices and tag selections
           </p>
         </div>
@@ -46,7 +46,7 @@ export default function TelegrafConfig() {
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Regenerate
           </button>
           <button onClick={handleCopy} className="btn-secondary">
-            {copied ? <CheckCircle size={14} className="text-green-500" /> : <Copy size={14} />}
+            {copied ? <CheckCircle size={14} className="text-green-400" /> : <Copy size={14} />}
             {copied ? 'Copied!' : 'Copy'}
           </button>
           <button onClick={handleDownload} className="btn-primary">
@@ -55,18 +55,18 @@ export default function TelegrafConfig() {
         </div>
       </div>
 
-      <div className="card">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
-          <div className="flex items-center gap-2 text-sm text-gray-600">
+      <div className="card overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800/50">
+          <div className="flex items-center gap-2 text-sm text-gray-400">
             <FileCode size={14} />
             <span className="font-mono">telegraf.conf</span>
-            <span className="text-gray-400">·</span>
-            <span className="text-gray-400">{lineCount} lines</span>
+            <span className="text-gray-600">·</span>
+            <span className="text-gray-500">{lineCount} lines</span>
           </div>
           <div className="flex gap-2">
-            <span className="w-3 h-3 rounded-full bg-red-400" />
-            <span className="w-3 h-3 rounded-full bg-yellow-400" />
-            <span className="w-3 h-3 rounded-full bg-green-400" />
+            <span className="w-3 h-3 rounded-full bg-red-500/60" />
+            <span className="w-3 h-3 rounded-full bg-yellow-500/60" />
+            <span className="w-3 h-3 rounded-full bg-green-500/60" />
           </div>
         </div>
         {loading ? (
@@ -74,21 +74,21 @@ export default function TelegrafConfig() {
             <Loader2 size={28} className="animate-spin text-blue-500" />
           </div>
         ) : (
-          <pre className="p-5 text-xs font-mono text-gray-800 bg-gray-950 text-green-400 overflow-auto max-h-[70vh] leading-relaxed whitespace-pre-wrap">
+          <pre className="p-5 text-xs font-mono text-green-400 bg-gray-950 overflow-auto max-h-[70vh] leading-relaxed whitespace-pre-wrap">
             {config || '# No devices or tags configured yet.'}
           </pre>
         )}
       </div>
 
-      <div className="card p-4 bg-blue-50 border-blue-200">
-        <h3 className="text-sm font-semibold text-blue-800 mb-2">Usage</h3>
-        <p className="text-sm text-blue-700 mb-2">
+      <div className="card p-4 bg-blue-900/20 border-blue-800">
+        <h3 className="text-sm font-semibold text-blue-300 mb-2">Usage</h3>
+        <p className="text-sm text-blue-300/80 mb-2">
           Download this file and place it at your configured Telegraf config path. Then reload Telegraf:
         </p>
-        <code className="block bg-blue-100 rounded px-3 py-2 text-xs font-mono text-blue-900">
+        <code className="block bg-gray-800 rounded px-3 py-2 text-xs font-mono text-blue-400">
           systemctl reload telegraf
         </code>
-        <p className="text-xs text-blue-600 mt-2">
+        <p className="text-xs text-blue-400/60 mt-2">
           You can configure the config path and reload command in <strong>Administration</strong>.
         </p>
       </div>

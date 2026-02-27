@@ -12,7 +12,7 @@ def generate_config(
     influxdb_token = system_config.get("influxdb_token", "$INFLUX_TOKEN")
     influxdb_org = system_config.get("influxdb_org", "myorg")
     influxdb_default_bucket = system_config.get("influxdb_default_bucket", "default")
-    app_title = system_config.get("app_title", "OPC UA Telegraf Admin")
+    app_title = system_config.get("app_title", "FluxForge")
 
     lines = []
     lines.append(f"# Telegraf Configuration")

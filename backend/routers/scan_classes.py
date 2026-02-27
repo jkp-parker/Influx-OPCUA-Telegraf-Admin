@@ -75,3 +75,25 @@ def delete_scan_class(sc_id: int, db: Session = Depends(get_db)):
     db.delete(sc)
     db.commit()
     return {"ok": True}
+
+
+@router.post("/{sc_id}/set-default")
+def set_default_scan_class(sc_id: int, db: Session = Depends(get_db)):
+    sc = db.query(models.ScanClass).filter(models.ScanClass.id == sc_id).first()
+    if not sc:
+        raise HTTPException(status_code=404, detail="Scan class not found")
+    # Clear existing default
+    db.query(models.ScanClass).filter(models.ScanClass.is_default == True).update({"is_default": False})
+    sc.is_default = True
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/{sc_id}/clear-default")
+def clear_default_scan_class(sc_id: int, db: Session = Depends(get_db)):
+    sc = db.query(models.ScanClass).filter(models.ScanClass.id == sc_id).first()
+    if not sc:
+        raise HTTPException(status_code=404, detail="Scan class not found")
+    sc.is_default = False
+    db.commit()
+    return {"ok": True}

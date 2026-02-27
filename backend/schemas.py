@@ -26,7 +26,7 @@ class SystemConfigUpdate(BaseModel):
     influxdb_default_bucket: Optional[str] = ""
     telegraf_config_path: Optional[str] = "/etc/telegraf/telegraf.conf"
     telegraf_reload_command: Optional[str] = "systemctl reload telegraf"
-    app_title: Optional[str] = "OPC UA Telegraf Admin"
+    app_title: Optional[str] = "FluxForge"
 
 
 # ScanClass schemas
@@ -46,6 +46,7 @@ class ScanClassUpdate(ScanClassBase):
 
 class ScanClassOut(ScanClassBase):
     id: int
+    is_default: bool = False
     created_at: datetime
     tag_count: Optional[int] = 0
 
@@ -153,6 +154,7 @@ class OpcuaTestRequest(BaseModel):
     endpoint_url: str
     username: Optional[str] = ""
     password: Optional[str] = ""
+    security_policy: Optional[str] = "None"
 
 
 class InfluxTestRequest(BaseModel):

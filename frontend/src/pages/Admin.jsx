@@ -47,7 +47,7 @@ export default function Admin() {
   const handleTest = async () => {
     setTesting(true); setTestResult(null)
     try {
-      await updateSystemConfig(form) // save first so backend uses current values
+      await updateSystemConfig(form)
       const result = await testSystemInfluxdb()
       setTestResult(result)
     } catch {
@@ -64,29 +64,29 @@ export default function Admin() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Administration</h1>
-        <p className="text-sm text-gray-500 mt-1">System-wide settings for this portal</p>
+        <h1 className="text-2xl font-bold text-gray-100">Administration</h1>
+        <p className="text-sm text-gray-400 mt-1">System-wide settings for this portal</p>
       </div>
 
       {/* Portal settings */}
       <div className="card p-6 space-y-5">
-        <h2 className="font-semibold text-gray-800 flex items-center gap-2">
-          <Settings size={16} className="text-blue-500" /> Portal Settings
+        <h2 className="font-semibold text-gray-200 flex items-center gap-2">
+          <Settings size={16} className="text-blue-400" /> Portal Settings
         </h2>
         <div>
           <label className="label">Portal Name</label>
           <input className="input" value={form.app_title} onChange={e => set('app_title', e.target.value)}
-            placeholder="OPC UA Telegraf Admin" />
-          <p className="text-xs text-gray-400 mt-1">Shown in the sidebar and browser tab</p>
+            placeholder="FluxForge" />
+          <p className="text-xs text-gray-500 mt-1">Shown in the sidebar and browser tab</p>
         </div>
       </div>
 
       {/* InfluxDB */}
       <div className="card p-6 space-y-5">
-        <h2 className="font-semibold text-gray-800 flex items-center gap-2">
-          <span className="text-blue-500">⬡</span> Default InfluxDB Connection
+        <h2 className="font-semibold text-gray-200 flex items-center gap-2">
+          <span className="text-blue-400">⬡</span> Default InfluxDB Connection
         </h2>
-        <p className="text-sm text-gray-500 -mt-3">
+        <p className="text-sm text-gray-400 -mt-3">
           Used as the fallback when a device has no specific InfluxDB target assigned.
         </p>
         <div>
@@ -116,7 +116,7 @@ export default function Admin() {
             Test Connection
           </button>
           {testResult && (
-            <span className={`text-sm flex items-center gap-1.5 ${testResult.success ? 'text-green-600' : 'text-red-600'}`}>
+            <span className={`text-sm flex items-center gap-1.5 ${testResult.success ? 'text-green-400' : 'text-red-400'}`}>
               {testResult.success ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
               {testResult.message}
             </span>
@@ -126,15 +126,15 @@ export default function Admin() {
 
       {/* Telegraf */}
       <div className="card p-6 space-y-5">
-        <h2 className="font-semibold text-gray-800 flex items-center gap-2">
-          <span className="text-blue-500">⚙</span> Telegraf Instance
+        <h2 className="font-semibold text-gray-200 flex items-center gap-2">
+          <span className="text-blue-400">⚙</span> Telegraf Instance
         </h2>
         <div>
           <label className="label">Config File Path</label>
           <input className="input font-mono" value={form.telegraf_config_path}
             onChange={e => set('telegraf_config_path', e.target.value)}
             placeholder="/etc/telegraf/telegraf.conf" />
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-gray-500 mt-1">
             Full filesystem path of the telegraf.conf this portal manages
           </p>
         </div>
@@ -143,7 +143,7 @@ export default function Admin() {
           <input className="input font-mono" value={form.telegraf_reload_command}
             onChange={e => set('telegraf_reload_command', e.target.value)}
             placeholder="systemctl reload telegraf" />
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-gray-500 mt-1">
             Shell command to reload Telegraf after config changes. Examples:
           </p>
           <div className="flex flex-wrap gap-2 mt-2">
@@ -153,7 +153,7 @@ export default function Admin() {
               'kill -HUP $(pidof telegraf)',
             ].map(cmd => (
               <button key={cmd} onClick={() => set('telegraf_reload_command', cmd)}
-                className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded font-mono transition-colors">
+                className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-2 py-1 rounded font-mono transition-colors">
                 {cmd}
               </button>
             ))}
@@ -168,7 +168,7 @@ export default function Admin() {
           Save Settings
         </button>
         {saveResult && (
-          <span className={`text-sm flex items-center gap-1.5 ${saveResult.success ? 'text-green-600' : 'text-red-600'}`}>
+          <span className={`text-sm flex items-center gap-1.5 ${saveResult.success ? 'text-green-400' : 'text-red-400'}`}>
             {saveResult.success ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
             {saveResult.message}
           </span>

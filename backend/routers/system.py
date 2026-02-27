@@ -25,7 +25,7 @@ DEFAULTS = {
     "influxdb_default_bucket": "",
     "telegraf_config_path": "/etc/telegraf/telegraf.conf",
     "telegraf_reload_command": "systemctl reload telegraf",
-    "app_title": "OPC UA Telegraf Admin",
+    "app_title": "FluxForge",
 }
 
 
@@ -57,7 +57,7 @@ def get_config(db: Session = Depends(get_db)):
         influxdb_default_bucket=cfg.get("influxdb_default_bucket", ""),
         telegraf_config_path=cfg.get("telegraf_config_path", "/etc/telegraf/telegraf.conf"),
         telegraf_reload_command=cfg.get("telegraf_reload_command", "systemctl reload telegraf"),
-        app_title=cfg.get("app_title", "OPC UA Telegraf Admin"),
+        app_title=cfg.get("app_title", "FluxForge"),
     )
 
 
@@ -70,7 +70,7 @@ def update_config(payload: schemas.SystemConfigUpdate, db: Session = Depends(get
         "influxdb_default_bucket": payload.influxdb_default_bucket or "",
         "telegraf_config_path": payload.telegraf_config_path or "/etc/telegraf/telegraf.conf",
         "telegraf_reload_command": payload.telegraf_reload_command or "systemctl reload telegraf",
-        "app_title": payload.app_title or "OPC UA Telegraf Admin",
+        "app_title": payload.app_title or "FluxForge",
         "setup_complete": "true",
     }
     for key, value in fields.items():

@@ -8,6 +8,7 @@ import ScanClasses from './pages/ScanClasses'
 import InfluxConfig from './pages/InfluxConfig'
 import TelegrafConfig from './pages/TelegrafConfig'
 import Admin from './pages/Admin'
+import TagManagement from './pages/TagManagement'
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/devices" element={<Devices />} />
                 <Route path="/devices/:id" element={<DeviceDetail />} />
+                <Route path="/tags" element={<TagManagement />} />
                 <Route path="/scan-classes" element={<ScanClasses />} />
                 <Route path="/influxdb" element={<InfluxConfig />} />
                 <Route path="/telegraf" element={<TelegrafConfig />} />

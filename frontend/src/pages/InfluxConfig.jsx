@@ -98,11 +98,11 @@ export default function InfluxConfig() {
   )
 
   return (
-    <div className="space-y-5 max-w-5xl">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">InfluxDB Targets</h1>
-          <p className="text-sm text-gray-500 mt-1">Configure InfluxDB connections for your devices</p>
+          <h1 className="text-2xl font-bold text-gray-100">InfluxDB Targets</h1>
+          <p className="text-sm text-gray-400 mt-1">Configure InfluxDB connections for your devices</p>
         </div>
         <button onClick={openAdd} className="btn-primary">
           <Plus size={16} /> Add Connection
@@ -110,9 +110,9 @@ export default function InfluxConfig() {
       </div>
 
       {configs.length === 0 ? (
-        <div className="card p-12 text-center text-gray-400">
-          <Database className="mx-auto mb-3 text-gray-300" size={40} />
-          <p className="font-medium">No InfluxDB targets configured</p>
+        <div className="card p-12 text-center text-gray-500">
+          <Database className="mx-auto mb-3 text-gray-600" size={40} />
+          <p className="font-medium text-gray-300">No InfluxDB targets configured</p>
           <p className="text-sm mt-1">Add a connection to route device data to InfluxDB</p>
           <button onClick={openAdd} className="btn-primary mt-4 mx-auto"><Plus size={16} /> Add Connection</button>
         </div>
@@ -126,7 +126,7 @@ export default function InfluxConfig() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-gray-900 text-lg">{cfg.name}</h3>
+                      <h3 className="font-semibold text-gray-100 text-lg">{cfg.name}</h3>
                       {cfg.is_default && (
                         <span className="badge badge-yellow flex items-center gap-1">
                           <Star size={10} /> Default
@@ -136,25 +136,25 @@ export default function InfluxConfig() {
                     </div>
                     <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
                       <div>
-                        <span className="text-gray-400 text-xs">URL</span>
-                        <p className="font-mono text-gray-700 text-xs break-all">{cfg.url}</p>
+                        <span className="text-gray-500 text-xs">URL</span>
+                        <p className="font-mono text-gray-300 text-xs break-all">{cfg.url}</p>
                       </div>
                       <div>
-                        <span className="text-gray-400 text-xs">Organisation</span>
-                        <p className="text-gray-700">{cfg.org}</p>
+                        <span className="text-gray-500 text-xs">Organisation</span>
+                        <p className="text-gray-300">{cfg.org}</p>
                       </div>
                       <div>
-                        <span className="text-gray-400 text-xs">Bucket</span>
-                        <p className="text-gray-700 font-medium">{cfg.bucket}</p>
+                        <span className="text-gray-500 text-xs">Bucket</span>
+                        <p className="text-gray-200 font-medium">{cfg.bucket}</p>
                       </div>
                       <div>
-                        <span className="text-gray-400 text-xs">Token</span>
+                        <span className="text-gray-500 text-xs">Token</span>
                         <p className="text-gray-500 font-mono text-xs">{'•'.repeat(12)}</p>
                       </div>
                     </div>
 
                     {tr && (
-                      <div className={`mt-3 text-sm flex items-center gap-1.5 ${tr.success ? 'text-green-600' : 'text-red-600'}`}>
+                      <div className={`mt-3 text-sm flex items-center gap-1.5 ${tr.success ? 'text-green-400' : 'text-red-400'}`}>
                         {tr.success ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
                         {tr.message}
                       </div>
@@ -163,7 +163,7 @@ export default function InfluxConfig() {
                     {cfgBuckets && (
                       <div className="mt-3 flex flex-wrap gap-1.5">
                         {cfgBuckets.length === 0
-                          ? <span className="text-xs text-gray-400">No buckets found</span>
+                          ? <span className="text-xs text-gray-500">No buckets found</span>
                           : cfgBuckets.map(b => (
                               <span key={b} className={`badge ${b === cfg.bucket ? 'badge-blue' : 'badge-gray'}`}>{b}</span>
                             ))
@@ -182,7 +182,7 @@ export default function InfluxConfig() {
                       Buckets
                     </button>
                     <button onClick={() => openEdit(cfg)} className="btn-ghost py-1 px-2"><Pencil size={13} /></button>
-                    <button onClick={() => handleDelete(cfg.id)} className="btn-ghost py-1 px-2 text-red-500 hover:bg-red-50">
+                    <button onClick={() => handleDelete(cfg.id)} className="btn-ghost py-1 px-2 text-red-400 hover:bg-red-900/30">
                       <Trash2 size={13} />
                     </button>
                   </div>
@@ -219,18 +219,18 @@ export default function InfluxConfig() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <input type="checkbox" id="is_default" checked={form.is_default} onChange={e => set('is_default', e.target.checked)} className="rounded" />
-            <label htmlFor="is_default" className="text-sm text-gray-700">Set as default for new devices</label>
+            <input type="checkbox" id="is_default" checked={form.is_default} onChange={e => set('is_default', e.target.checked)} className="rounded border-gray-600 bg-gray-800 text-blue-500" />
+            <label htmlFor="is_default" className="text-sm text-gray-300">Set as default for new devices</label>
           </div>
         </div>
         {modalTestResult && (
-          <div className={`mt-3 text-sm flex items-center gap-1.5 ${modalTestResult.success ? 'text-green-600' : 'text-red-600'}`}>
+          <div className={`mt-3 text-sm flex items-center gap-1.5 ${modalTestResult.success ? 'text-green-400' : 'text-red-400'}`}>
             {modalTestResult.success ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
             {modalTestResult.message}
           </div>
         )}
-        {error && <p className="text-sm text-red-600 mt-3 flex items-center gap-1"><AlertCircle size={14} />{error}</p>}
-        <div className="flex justify-between gap-2 mt-5 pt-4 border-t border-gray-100">
+        {error && <p className="text-sm text-red-400 mt-3 flex items-center gap-1"><AlertCircle size={14} />{error}</p>}
+        <div className="flex justify-between gap-2 mt-5 pt-4 border-t border-gray-700">
           <button onClick={handleModalTest} disabled={modalTesting} className="btn-secondary">
             {modalTesting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
             Test Connection

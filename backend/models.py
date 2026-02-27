@@ -20,6 +20,7 @@ class ScanClass(Base):
     name = Column(String, unique=True, nullable=False)
     interval_ms = Column(Integer, nullable=False)
     description = Column(Text, default="")
+    is_default = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     tags = relationship("Tag", back_populates="scan_class")
 
