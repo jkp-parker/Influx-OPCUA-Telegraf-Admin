@@ -157,11 +157,9 @@ def generate_config(
             if device.username:
                 lines.append(f'  username = "{device.username}"')
                 lines.append(f'  password = "{device.password}"')
-            if device.security_policy and device.security_policy != "None":
-                lines.append(f'  security_policy = "{device.security_policy}"')
+            lines.append(f'  security_policy = "{device.security_policy or "None"}"')
             if interval_ms != default_interval_ms:
                 lines.append(f'  interval = "{interval_str}"')
-            lines.append('  connect_fail_behavior = "ignore"')
             lines.append("")
 
             # Sub-group tags by (measurement, namespace, identifier_type)
