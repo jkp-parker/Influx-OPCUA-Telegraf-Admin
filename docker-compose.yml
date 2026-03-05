@@ -3,7 +3,8 @@
 #
 #  Single-container stack: FastAPI backend + React frontend served by nginx.
 #  Does NOT include InfluxDB or Telegraf — point the portal at your existing
-#  instances during the first-run setup wizard.
+#  instances during the first-run setup wizard, or use the Deployment page
+#  to auto-deploy Telegraf containers.
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -15,10 +16,15 @@ services:
     container_name: fluxforge
     restart: unless-stopped
     volumes:
-      # Persist the SQLite configuration database between restarts
-      - fluxforge_data:/app/data
+      # Bind mount for predictable host path (needed for Telegraf container config mounts)
+      - ./data:/app/data
+      # Docker socket for container management (optional — needed for auto-deploy)
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       DATABASE_URL: sqlite:////app/data/opcua_admin.db
+      # Host-side path to the telegraf-configs directory.
+      # Telegraf containers need this to bind-mount their config files.
+      TELEGRAF_CONFIG_HOST_PATH: ${TELEGRAF_CONFIG_HOST_PATH:-./data/telegraf-configs}
     ports:
       - "9077:9077"
     healthcheck:
@@ -26,7 +32,3 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-
-volumes:
-  fluxforge_data:
-    driver: local

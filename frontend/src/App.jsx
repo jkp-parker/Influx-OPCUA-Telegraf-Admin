@@ -9,6 +9,7 @@ import InfluxConfig from './pages/InfluxConfig'
 import TelegrafConfig from './pages/TelegrafConfig'
 import Admin from './pages/Admin'
 import TagManagement from './pages/TagManagement'
+import Deployment from './pages/Deployment'
 
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
                 <Route path="/scan-classes" element={<ScanClasses />} />
                 <Route path="/influxdb" element={<InfluxConfig />} />
                 <Route path="/telegraf" element={<TelegrafConfig />} />
+                <Route path="/deploy" element={<Deployment />} />
                 <Route path="/admin" element={<Admin />} />
               </Routes>
             </Layout>

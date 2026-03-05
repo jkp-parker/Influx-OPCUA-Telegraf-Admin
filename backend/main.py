@@ -9,7 +9,7 @@ import logging
 from sqlalchemy import inspect, text
 from database import engine, Base, SessionLocal
 import models  # noqa: F401 — ensures all models are registered
-from routers import system, devices, scan_classes, influxdb_config, metrics, telegraf
+from routers import system, devices, scan_classes, influxdb_config, metrics, telegraf, telegraf_instances, deployment
 from services.opcua_certs import ensure_certs_exist
 
 logger = logging.getLogger(__name__)
@@ -31,6 +31,32 @@ def _migrate():
         if "version" not in cols:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE influxdb_configs ADD COLUMN version INTEGER DEFAULT 2"))
+
+    if "devices" in insp.get_table_names():
+        cols = [c["name"] for c in insp.get_columns("devices")]
+        if "telegraf_instance_id" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE devices ADD COLUMN telegraf_instance_id INTEGER REFERENCES telegraf_instances(id)"))
+
+    # Auto-create a default TelegrafInstance and assign unassigned devices
+    if "telegraf_instances" in insp.get_table_names():
+        db = SessionLocal()
+        try:
+            default_inst = db.query(models.TelegrafInstance).filter(
+                models.TelegrafInstance.name == "default"
+            ).first()
+            if not default_inst:
+                default_inst = models.TelegrafInstance(name="default", description="Default Telegraf instance")
+                db.add(default_inst)
+                db.flush()
+            unassigned = db.query(models.Device).filter(
+                models.Device.telegraf_instance_id == None
+            ).all()
+            for dev in unassigned:
+                dev.telegraf_instance_id = default_inst.id
+            db.commit()
+        finally:
+            db.close()
 
 _migrate()
 
@@ -58,6 +84,8 @@ app.include_router(scan_classes.router, prefix="/api")
 app.include_router(influxdb_config.router, prefix="/api")
 app.include_router(metrics.router, prefix="/api")
 app.include_router(telegraf.router, prefix="/api")
+app.include_router(telegraf_instances.router, prefix="/api")
+app.include_router(deployment.router, prefix="/api")
 
 # Auto-scan devices with NodeIncludes on startup so tags are populated
 def _startup_scan():

@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Server, Tag, Clock, Database,
-  FileCode, Settings, Link,
+  FileCode, Settings, Link, Rocket,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { getSystemConfig } from '../services/api'
@@ -13,6 +13,7 @@ const mainNavItems = [
   { to: '/scan-classes', icon: Clock, label: 'Scan Classes' },
   { to: '/influxdb', icon: Database, label: 'InfluxDB Targets' },
   { to: '/telegraf', icon: FileCode, label: 'Telegraf Config' },
+  { to: '/deploy', icon: Rocket, label: 'Deployment' },
 ]
 
 const bottomNavItems = [

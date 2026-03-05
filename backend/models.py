@@ -42,6 +42,18 @@ class InfluxDBConfig(Base):
     devices = relationship("Device", back_populates="influxdb_config")
 
 
+class TelegrafInstance(Base):
+    __tablename__ = "telegraf_instances"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, unique=True, nullable=False)
+    description = Column(Text, default="")
+    enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    devices = relationship("Device", back_populates="telegraf_instance")
+
+
 class Device(Base):
     __tablename__ = "devices"
 
@@ -52,10 +64,12 @@ class Device(Base):
     password = Column(String, default="")
     security_policy = Column(String, default="None")
     influxdb_config_id = Column(Integer, ForeignKey("influxdb_configs.id"), nullable=True)
+    telegraf_instance_id = Column(Integer, ForeignKey("telegraf_instances.id"), nullable=True)
     enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     influxdb_config = relationship("InfluxDBConfig", back_populates="devices")
+    telegraf_instance = relationship("TelegrafInstance", back_populates="devices")
     tags = relationship("Tag", back_populates="device", cascade="all, delete-orphan")
     node_includes = relationship("NodeInclude", back_populates="device", cascade="all, delete-orphan")
 

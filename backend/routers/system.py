@@ -34,6 +34,15 @@ DEFAULTS = {
     "agent_flush_jitter": "0s",
     "agent_hostname": "",
     "agent_omit_hostname": "false",
+    "docker_enabled": "false",
+    "telegraf_image": "telegraf:1.32",
+    "telegraf_config_host_path": "",
+    "docker_connection_mode": "local",
+    "docker_remote_host": "",
+    "docker_tls_verify": "false",
+    "docker_tls_ca_path": "",
+    "docker_tls_cert_path": "",
+    "docker_tls_key_path": "",
 }
 
 

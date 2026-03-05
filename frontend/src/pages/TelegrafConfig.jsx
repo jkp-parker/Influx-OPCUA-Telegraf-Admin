@@ -1,26 +1,21 @@
 import { useEffect, useState, useRef } from 'react'
 import {
   Download, RefreshCw, Loader2, FileCode, Copy, CheckCircle,
-  Upload, Edit3, Save, X, RotateCcw, AlertTriangle, Database,
-  Server, Tag, FileText, ArrowLeft, Check
+  Upload, AlertTriangle, Database, Server, Tag, FileText,
+  ArrowLeft, Check, Layers
 } from 'lucide-react'
 import {
-  getTelegrafConfig, previewTelegrafImport, confirmTelegrafImport,
-  saveTelegrafOverride, revertTelegrafOverride
+  getAllInstanceConfigs, previewTelegrafImport, confirmTelegrafImport,
+  listTelegrafInstances
 } from '../services/api'
 import Modal from '../components/Modal'
 
 export default function TelegrafConfig() {
-  const [config, setConfig] = useState('')
+  const [configs, setConfigs] = useState([])
+  const [instances, setInstances] = useState([])
+  const [activeTab, setActiveTab] = useState(null)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
-  const [configMode, setConfigMode] = useState('generated')
-
-  // Edit mode
-  const [editMode, setEditMode] = useState(false)
-  const [editContent, setEditContent] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [reverting, setReverting] = useState(false)
 
   // Import modal
   const [importOpen, setImportOpen] = useState(false)
@@ -35,11 +30,17 @@ export default function TelegrafConfig() {
   const load = async () => {
     setLoading(true)
     try {
-      const res = await getTelegrafConfig()
-      setConfig(res.data)
-      setConfigMode(res.headers['x-config-mode'] || 'generated')
+      const [cfgs, insts] = await Promise.all([
+        getAllInstanceConfigs(),
+        listTelegrafInstances(),
+      ])
+      setConfigs(cfgs)
+      setInstances(insts)
+      if (cfgs.length > 0 && !activeTab) {
+        setActiveTab(cfgs[0].instance_id)
+      }
     } catch {
-      setConfig('# Error loading config')
+      setConfigs([])
     } finally {
       setLoading(false)
     }
@@ -47,56 +48,36 @@ export default function TelegrafConfig() {
 
   useEffect(() => { load() }, [])
 
+  const activeConfig = configs.find(c => c.instance_id === activeTab)
+  const configText = activeConfig?.config || ''
+  const lineCount = configText.split('\n').length
+
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(editMode ? editContent : config)
+    await navigator.clipboard.writeText(configText)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
   const handleDownload = () => {
-    const blob = new Blob([editMode ? editContent : config], { type: 'text/plain' })
+    if (!activeConfig) return
+    const blob = new Blob([configText], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'telegraf.conf'
+    a.download = `telegraf-${activeConfig.instance_name}.conf`
     a.click()
     URL.revokeObjectURL(url)
   }
 
-  // Edit mode handlers
-  const enterEdit = () => {
-    setEditContent(config)
-    setEditMode(true)
-  }
-
-  const cancelEdit = () => {
-    setEditMode(false)
-    setEditContent('')
-  }
-
-  const saveEdit = async () => {
-    setSaving(true)
-    try {
-      await saveTelegrafOverride(editContent)
-      setEditMode(false)
-      await load()
-    } catch (e) {
-      console.error('Save failed:', e)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleRevert = async () => {
-    setReverting(true)
-    try {
-      await revertTelegrafOverride()
-      setEditMode(false)
-      await load()
-    } catch (e) {
-      console.error('Revert failed:', e)
-    } finally {
-      setReverting(false)
+  const handleDownloadAll = () => {
+    for (const cfg of configs) {
+      const blob = new Blob([cfg.config], { type: 'text/plain' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `telegraf-${cfg.instance_name}.conf`
+      a.click()
+      URL.revokeObjectURL(url)
     }
   }
 
@@ -154,8 +135,9 @@ export default function TelegrafConfig() {
     }
   }
 
-  const lineCount = (editMode ? editContent : config).split('\n').length
   const totalImportTags = importPreview?.devices?.reduce((sum, d) => sum + d.tags.length, 0) || 0
+  const totalTags = configs.reduce((sum, c) => sum + c.tag_count, 0)
+  const totalDevices = configs.reduce((sum, c) => sum + c.device_count, 0)
 
   return (
     <div className="space-y-5">
@@ -163,110 +145,88 @@ export default function TelegrafConfig() {
         <div>
           <h1 className="text-2xl font-bold text-gray-100">Telegraf Configuration</h1>
           <p className="text-sm text-gray-400 mt-1">
-            {configMode === 'override'
-              ? 'Manually edited config — not auto-generated'
-              : 'Auto-generated config based on your devices and tag selections'}
+            {configs.length > 0
+              ? `${configs.length} instance${configs.length !== 1 ? 's' : ''} \u00b7 ${totalDevices} device${totalDevices !== 1 ? 's' : ''} \u00b7 ${totalTags} tag${totalTags !== 1 ? 's' : ''}`
+              : 'Auto-generated configs for each Telegraf instance'}
           </p>
         </div>
         <div className="flex gap-2">
           <button onClick={openImport} className="btn-secondary">
             <Upload size={14} /> Import
           </button>
-          {editMode ? (
-            <>
-              <button onClick={cancelEdit} className="btn-secondary">
-                <X size={14} /> Cancel
-              </button>
-              <button onClick={saveEdit} disabled={saving} className="btn-primary">
-                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                Save Override
-              </button>
-            </>
-          ) : (
-            <>
-              <button onClick={enterEdit} className="btn-secondary">
-                <Edit3 size={14} /> Edit
-              </button>
-              <button onClick={load} disabled={loading} className="btn-secondary">
-                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Regenerate
-              </button>
-              <button onClick={handleCopy} className="btn-secondary">
-                {copied ? <CheckCircle size={14} className="text-green-400" /> : <Copy size={14} />}
-                {copied ? 'Copied!' : 'Copy'}
-              </button>
-              <button onClick={handleDownload} className="btn-primary">
-                <Download size={14} /> Download
-              </button>
-            </>
+          <button onClick={load} disabled={loading} className="btn-secondary">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Regenerate
+          </button>
+          {configs.length > 1 && (
+            <button onClick={handleDownloadAll} className="btn-secondary">
+              <Download size={14} /> Download All
+            </button>
           )}
         </div>
       </div>
 
-      {/* Override banner */}
-      {configMode === 'override' && !editMode && (
-        <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-amber-900/30 border border-amber-700/50">
-          <div className="flex items-center gap-2 text-amber-300 text-sm">
-            <AlertTriangle size={16} />
-            <span>Manual override active — config is not auto-generated from your devices/tags.</span>
-          </div>
-          <button
-            onClick={handleRevert}
-            disabled={reverting}
-            className="btn-secondary text-xs !py-1 !px-3 border-amber-600 text-amber-300 hover:bg-amber-900/50"
-          >
-            {reverting ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
-            Revert to Generated
-          </button>
+      {/* Tab bar */}
+      {configs.length > 0 && (
+        <div className="flex gap-1 border-b border-gray-700 overflow-x-auto">
+          {configs.map(cfg => (
+            <button
+              key={cfg.instance_id}
+              onClick={() => setActiveTab(cfg.instance_id)}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === cfg.instance_id
+                  ? 'border-blue-500 text-blue-400 bg-blue-500/5'
+                  : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-600'
+              }`}
+            >
+              <Layers size={14} />
+              {cfg.instance_name}
+              <span className="text-xs text-gray-500">
+                {cfg.device_count}d / {cfg.tag_count}t
+              </span>
+            </button>
+          ))}
         </div>
       )}
 
-      <div className="card overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800/50">
-          <div className="flex items-center gap-2 text-sm text-gray-400">
-            <FileCode size={14} />
-            <span className="font-mono">telegraf.conf</span>
-            <span className="text-gray-600">·</span>
-            <span className="text-gray-500">{lineCount} lines</span>
-            {configMode === 'override' && (
-              <span className="badge bg-amber-900/50 text-amber-400 ml-1">override</span>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <span className="w-3 h-3 rounded-full bg-red-500/60" />
-            <span className="w-3 h-3 rounded-full bg-yellow-500/60" />
-            <span className="w-3 h-3 rounded-full bg-green-500/60" />
-          </div>
+      {/* Config viewer */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 size={28} className="animate-spin text-blue-500" />
         </div>
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 size={28} className="animate-spin text-blue-500" />
+      ) : configs.length === 0 ? (
+        <div className="card p-12 text-center">
+          <FileCode size={40} className="mx-auto text-gray-600 mb-4" />
+          <h3 className="text-lg font-semibold text-gray-300 mb-2">No Configs Available</h3>
+          <p className="text-sm text-gray-500 max-w-md mx-auto">
+            No enabled Telegraf instances with devices found. Add devices and assign them to instances to generate configs.
+          </p>
+        </div>
+      ) : activeConfig && (
+        <div className="card overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800/50">
+            <div className="flex items-center gap-2 text-sm text-gray-400">
+              <FileCode size={14} />
+              <span className="font-mono">telegraf-{activeConfig.instance_name}.conf</span>
+              <span className="text-gray-600">&middot;</span>
+              <span className="text-gray-500">{lineCount} lines</span>
+              <span className="text-gray-600">&middot;</span>
+              <span className="text-gray-500">{activeConfig.device_count} devices</span>
+              <span className="text-gray-600">&middot;</span>
+              <span className="text-gray-500">{activeConfig.tag_count} tags</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={handleCopy} className="btn-secondary !py-1 !px-2 text-xs">
+                {copied ? <CheckCircle size={12} className="text-green-400" /> : <Copy size={12} />}
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
+              <button onClick={handleDownload} className="btn-primary !py-1 !px-2 text-xs">
+                <Download size={12} /> Download
+              </button>
+            </div>
           </div>
-        ) : editMode ? (
-          <textarea
-            value={editContent}
-            onChange={(e) => setEditContent(e.target.value)}
-            className="w-full p-5 text-xs font-mono text-green-400 bg-gray-950 min-h-[70vh] leading-relaxed resize-none focus:outline-none"
-            spellCheck={false}
-          />
-        ) : (
           <pre className="p-5 text-xs font-mono text-green-400 bg-gray-950 overflow-auto max-h-[70vh] leading-relaxed whitespace-pre-wrap">
-            {config || '# No devices or tags configured yet.'}
+            {configText || '# No devices or tags configured for this instance.'}
           </pre>
-        )}
-      </div>
-
-      {!editMode && (
-        <div className="card p-4 bg-blue-900/20 border-blue-800">
-          <h3 className="text-sm font-semibold text-blue-300 mb-2">Usage</h3>
-          <p className="text-sm text-blue-300/80 mb-2">
-            Download this file and place it at your configured Telegraf config path. Then reload Telegraf:
-          </p>
-          <code className="block bg-gray-800 rounded px-3 py-2 text-xs font-mono text-blue-400">
-            systemctl reload telegraf
-          </code>
-          <p className="text-xs text-blue-400/60 mt-2">
-            You can configure the config path and reload command in <strong>Administration</strong>.
-          </p>
         </div>
       )}
 
@@ -318,7 +278,6 @@ export default function TelegrafConfig() {
 
         {importStep === 2 && importPreview && (
           <div className="space-y-4">
-            {/* Warnings */}
             {importPreview.warnings.length > 0 && (
               <div className="bg-amber-900/30 border border-amber-700/50 rounded-lg p-3 space-y-1">
                 {importPreview.warnings.map((w, i) => (
@@ -330,7 +289,6 @@ export default function TelegrafConfig() {
               </div>
             )}
 
-            {/* InfluxDB Targets */}
             <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
               <div className="flex items-center gap-2 text-sm font-medium text-gray-200 mb-3">
                 <Database size={16} className="text-purple-400" />
@@ -345,14 +303,13 @@ export default function TelegrafConfig() {
                     <div key={i} className="flex items-center gap-3 text-sm bg-gray-900/50 rounded px-3 py-2">
                       <span className="text-gray-200 font-medium">{cfg.name}</span>
                       <span className="text-gray-500">{cfg.url}</span>
-                      <span className="text-gray-500">→ {cfg.bucket}</span>
+                      <span className="text-gray-500">&rarr; {cfg.bucket}</span>
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* OPC-UA Devices */}
             <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
               <div className="flex items-center gap-2 text-sm font-medium text-gray-200 mb-3">
                 <Server size={16} className="text-blue-400" />
@@ -376,7 +333,6 @@ export default function TelegrafConfig() {
               )}
             </div>
 
-            {/* Passthrough */}
             {importPreview.passthrough_sections.trim() && (
               <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
                 <div className="flex items-center gap-2 text-sm font-medium text-gray-200 mb-2">
@@ -393,7 +349,6 @@ export default function TelegrafConfig() {
               </div>
             )}
 
-            {/* Summary */}
             <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
               <p className="text-sm text-gray-300">
                 This will create <strong>{importPreview.influxdb_configs.length}</strong> InfluxDB target(s),{' '}
@@ -441,14 +396,14 @@ export default function TelegrafConfig() {
                   <Database size={14} className="text-purple-400" />
                   Created {importResult.influxdb_created} InfluxDB target(s)
                   {importResult.influxdb_skipped > 0 && (
-                    <span className="text-gray-500">({importResult.influxdb_skipped} skipped — already exist)</span>
+                    <span className="text-gray-500">({importResult.influxdb_skipped} skipped)</span>
                   )}
                 </div>
               )}
               {importResult.influxdb_skipped > 0 && importResult.influxdb_created === 0 && (
                 <div className="flex items-center gap-2 text-sm text-gray-300">
                   <Database size={14} className="text-gray-500" />
-                  {importResult.influxdb_skipped} InfluxDB target(s) skipped — already exist
+                  {importResult.influxdb_skipped} InfluxDB target(s) skipped
                 </div>
               )}
               {importResult.devices_created > 0 && (
@@ -463,18 +418,18 @@ export default function TelegrafConfig() {
               {importResult.devices_skipped > 0 && importResult.devices_created === 0 && (
                 <div className="flex items-center gap-2 text-sm text-gray-300">
                   <Server size={14} className="text-gray-500" />
-                  {importResult.devices_skipped} device(s) skipped — already exist
+                  {importResult.devices_skipped} device(s) skipped
                 </div>
               )}
               {importResult.passthrough_saved && (
                 <div className="flex items-center gap-2 text-sm text-gray-300">
                   <FileText size={14} className="text-green-400" />
-                  Passthrough sections saved — will appear in generated config
+                  Passthrough sections saved
                 </div>
               )}
             </div>
 
-            {importResult.warnings.length > 0 && (
+            {importResult.warnings?.length > 0 && (
               <div className="bg-amber-900/30 border border-amber-700/50 rounded-lg p-3 space-y-1">
                 {importResult.warnings.map((w, i) => (
                   <div key={i} className="flex items-start gap-2 text-sm text-amber-300">

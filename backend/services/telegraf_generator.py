@@ -207,6 +207,123 @@ def generate_config(
     return "\n".join(lines)
 
 
+def generate_instance_configs(
+    instances: List[Any],
+    system_config: Dict[str, str],
+    default_influxdb: Any = None,
+    scan_cache: Dict[int, Dict] = None,
+    default_scan_class: Any = None,
+) -> Dict[int, Dict[str, Any]]:
+    """Generate configs for each TelegrafInstance.
+
+    Returns {instance_id: {"name": str, "config": str, "device_count": int, "tag_count": int}}
+    """
+    result = {}
+    for instance in instances:
+        devices = [d for d in instance.devices if d.enabled]
+        tag_count = sum(
+            len([t for t in d.tags if t.enabled]) for d in devices
+        )
+        config = generate_config(
+            devices, system_config, default_influxdb,
+            scan_cache=scan_cache, default_scan_class=default_scan_class,
+        )
+        result[instance.id] = {
+            "name": instance.name,
+            "config": config,
+            "device_count": len(devices),
+            "tag_count": tag_count,
+        }
+    return result
+
+
+def suggest_splits(
+    devices: List[Any],
+    max_tags_per_instance: int = 5000,
+) -> List[Dict[str, Any]]:
+    """Analyze devices and suggest groupings based on tag counts and scan rates.
+
+    Returns a list of suggestions: [{name, device_ids, device_names, tag_count, reason}]
+    """
+    suggestions = []
+
+    # Build per-device stats
+    device_stats = []
+    for d in devices:
+        if not d.enabled:
+            continue
+        enabled_tags = [t for t in d.tags if t.enabled]
+        tag_count = len(enabled_tags)
+        # Find the fastest scan rate among this device's tags
+        min_interval = None
+        for t in enabled_tags:
+            if t.scan_class and t.scan_class.interval_ms:
+                if min_interval is None or t.scan_class.interval_ms < min_interval:
+                    min_interval = t.scan_class.interval_ms
+        device_stats.append({
+            "id": d.id,
+            "name": d.name,
+            "tag_count": tag_count,
+            "min_interval_ms": min_interval,
+        })
+
+    total_tags = sum(ds["tag_count"] for ds in device_stats)
+
+    if total_tags <= max_tags_per_instance and len(device_stats) <= 1:
+        return []
+
+    # Strategy 1: If total tags exceed threshold, suggest per-device split
+    if total_tags > max_tags_per_instance:
+        for ds in device_stats:
+            safe = ds["name"].lower().replace(" ", "-")
+            suggestions.append({
+                "name": f"telegraf-{safe}",
+                "device_ids": [ds["id"]],
+                "device_names": [ds["name"]],
+                "tag_count": ds["tag_count"],
+                "reason": f"Total tags ({total_tags}) exceed threshold ({max_tags_per_instance}). "
+                          f"Splitting {ds['name']} ({ds['tag_count']} tags) into its own instance.",
+            })
+        return suggestions
+
+    # Strategy 2: Group by scan rate similarity
+    fast_devices = [ds for ds in device_stats if ds["min_interval_ms"] and ds["min_interval_ms"] < 500]
+    slow_devices = [ds for ds in device_stats if not ds["min_interval_ms"] or ds["min_interval_ms"] >= 500]
+
+    if fast_devices and slow_devices:
+        fast_tags = sum(ds["tag_count"] for ds in fast_devices)
+        slow_tags = sum(ds["tag_count"] for ds in slow_devices)
+        suggestions.append({
+            "name": "telegraf-fast",
+            "device_ids": [ds["id"] for ds in fast_devices],
+            "device_names": [ds["name"] for ds in fast_devices],
+            "tag_count": fast_tags,
+            "reason": f"Devices with fast scan rates (<500ms): {fast_tags} tags",
+        })
+        suggestions.append({
+            "name": "telegraf-standard",
+            "device_ids": [ds["id"] for ds in slow_devices],
+            "device_names": [ds["name"] for ds in slow_devices],
+            "tag_count": slow_tags,
+            "reason": f"Devices with standard scan rates (>=500ms): {slow_tags} tags",
+        })
+        return suggestions
+
+    # Strategy 3: Multiple devices, suggest per-device
+    if len(device_stats) > 1:
+        for ds in device_stats:
+            safe = ds["name"].lower().replace(" ", "-")
+            suggestions.append({
+                "name": f"telegraf-{safe}",
+                "device_ids": [ds["id"]],
+                "device_names": [ds["name"]],
+                "tag_count": ds["tag_count"],
+                "reason": f"One instance per device for fault isolation",
+            })
+
+    return suggestions
+
+
 def _ms_to_duration(ms: int) -> str:
     if ms < 1000:
         return f"{ms}ms"

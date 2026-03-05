@@ -108,6 +108,7 @@ class DeviceBase(BaseModel):
     password: Optional[str] = ""
     security_policy: Optional[str] = "None"
     influxdb_config_id: Optional[int] = None
+    telegraf_instance_id: Optional[int] = None
     enabled: Optional[bool] = True
 
 
@@ -126,6 +127,7 @@ class DeviceOut(DeviceBase):
     tag_count: Optional[int] = 0
     enabled_tag_count: Optional[int] = 0
     influxdb_name: Optional[str] = None
+    telegraf_instance_name: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -284,3 +286,94 @@ class OpcuaNodeOut(BaseModel):
     is_variable: bool
     has_children: bool
     data_type: Optional[str] = ""
+
+
+# TelegrafInstance schemas
+class TelegrafInstanceBase(BaseModel):
+    name: str
+    description: Optional[str] = ""
+    enabled: Optional[bool] = True
+
+
+class TelegrafInstanceCreate(TelegrafInstanceBase):
+    device_ids: Optional[List[int]] = []
+
+
+class TelegrafInstanceUpdate(TelegrafInstanceBase):
+    device_ids: Optional[List[int]] = []
+
+
+class TelegrafInstanceOut(TelegrafInstanceBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    device_count: int = 0
+    tag_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class TelegrafInstanceConfigOut(BaseModel):
+    instance_id: int
+    instance_name: str
+    config: str
+    device_count: int = 0
+    tag_count: int = 0
+
+
+class SplitSuggestion(BaseModel):
+    name: str
+    device_ids: List[int]
+    device_names: List[str]
+    tag_count: int
+    reason: str
+
+
+# Deployment schemas
+class ContainerActionRequest(BaseModel):
+    action: str  # "start", "stop", "restart", "remove"
+
+
+class ContainerStatusOut(BaseModel):
+    instance_id: int
+    instance_name: str
+    container_name: Optional[str] = None
+    status: str  # "running", "stopped", "not_created", "error"
+    health: Optional[str] = None
+    started_at: Optional[str] = None
+    image: Optional[str] = None
+
+
+class DeploymentSettingsOut(BaseModel):
+    docker_available: bool = False
+    docker_enabled: bool = False
+    telegraf_image: str = "telegraf:1.32"
+    telegraf_config_host_path: str = ""
+    docker_connection_mode: str = "local"
+    docker_remote_host: str = ""
+    docker_tls_verify: bool = False
+    docker_tls_ca_path: str = ""
+    docker_tls_cert_path: str = ""
+    docker_tls_key_path: str = ""
+
+
+class DeploymentSettingsUpdate(BaseModel):
+    docker_enabled: Optional[bool] = None
+    telegraf_image: Optional[str] = None
+    telegraf_config_host_path: Optional[str] = None
+    docker_connection_mode: Optional[str] = None
+    docker_remote_host: Optional[str] = None
+    docker_tls_verify: Optional[bool] = None
+    docker_tls_ca_path: Optional[str] = None
+    docker_tls_cert_path: Optional[str] = None
+    docker_tls_key_path: Optional[str] = None
+
+
+class DockerTestConnectionRequest(BaseModel):
+    docker_connection_mode: str = "local"
+    docker_remote_host: str = ""
+    docker_tls_verify: bool = False
+    docker_tls_ca_path: str = ""
+    docker_tls_cert_path: str = ""
+    docker_tls_key_path: str = ""

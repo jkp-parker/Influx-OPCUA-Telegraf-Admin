@@ -64,4 +64,25 @@ export const confirmTelegrafImport = (data) => api.post('/telegraf/import/confir
 export const saveTelegrafOverride = (content) => api.put('/telegraf/config/override', { content }).then(r => r.data)
 export const revertTelegrafOverride = () => api.delete('/telegraf/config/override').then(r => r.data)
 
+// Telegraf Instances
+export const listTelegrafInstances = () => api.get('/telegraf-instances').then(r => r.data)
+export const createTelegrafInstance = (data) => api.post('/telegraf-instances', data).then(r => r.data)
+export const getTelegrafInstance = (id) => api.get(`/telegraf-instances/${id}`).then(r => r.data)
+export const updateTelegrafInstance = (id, data) => api.put(`/telegraf-instances/${id}`, data).then(r => r.data)
+export const deleteTelegrafInstance = (id) => api.delete(`/telegraf-instances/${id}`).then(r => r.data)
+export const getTelegrafInstanceConfig = (id) => api.get(`/telegraf-instances/${id}/config`)
+export const getAllInstanceConfigs = () => api.get('/telegraf-instances/configs').then(r => r.data)
+export const autoCreateInstances = () => api.post('/telegraf-instances/auto-create').then(r => r.data)
+export const getSplitSuggestions = () => api.get('/telegraf-instances/suggest-splits').then(r => r.data)
+
+// Deployment
+export const getDeploymentStatus = () => api.get('/deployment/status').then(r => r.data)
+export const deployInstance = (id) => api.post(`/deployment/instances/${id}/deploy`).then(r => r.data)
+export const instanceAction = (id, action) => api.post(`/deployment/instances/${id}/action`, { action }).then(r => r.data)
+export const getInstanceLogs = (id, tail = 200) => api.get(`/deployment/instances/${id}/logs`, { params: { tail } }).then(r => r.data)
+export const deployAll = () => api.post('/deployment/deploy-all').then(r => r.data)
+export const getDeploymentSettings = () => api.get('/deployment/settings').then(r => r.data)
+export const updateDeploymentSettings = (data) => api.put('/deployment/settings', data).then(r => r.data)
+export const testDockerConnection = (data) => api.post('/deployment/test-docker', data).then(r => r.data)
+
 export default api
