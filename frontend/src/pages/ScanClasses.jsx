@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, Loader2, AlertCircle, Clock, Star, Check } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2, AlertCircle, Clock, Star, Check, Server, Tag } from 'lucide-react'
 import Modal from '../components/Modal'
 import {
   listScanClasses, createScanClass, updateScanClass, deleteScanClass,
   setDefaultScanClass, clearDefaultScanClass,
+  listTelegrafInstances, createTelegrafInstance, updateTelegrafInstance, deleteTelegrafInstance,
 } from '../services/api'
 
 const PRESETS = [
@@ -25,31 +26,37 @@ function formatInterval(ms) {
 }
 
 const EMPTY = { name: '', interval_ms: 1000, description: '' }
+const EMPTY_INSTANCE = { name: '', description: '', enabled: true }
 
 export default function ScanClasses() {
   const [classes, setClasses] = useState([])
+  const [instances, setInstances] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)
   const [editTarget, setEditTarget] = useState(null)
   const [form, setForm] = useState(EMPTY)
+  const [instForm, setInstForm] = useState(EMPTY_INSTANCE)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [toggling, setToggling] = useState(null) // preset name being toggled
+  const [toggling, setToggling] = useState(null)
 
-  const load = () => listScanClasses().then(setClasses).finally(() => setLoading(false))
+  const load = () => Promise.all([
+    listScanClasses(),
+    listTelegrafInstances(),
+  ]).then(([sc, inst]) => { setClasses(sc); setInstances(inst) })
+    .finally(() => setLoading(false))
+
   useEffect(() => { load() }, [])
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const setInst = (k, v) => setInstForm(f => ({ ...f, [k]: v }))
 
-  // Map existing scan classes by name for preset matching
   const classByName = Object.fromEntries(classes.map(c => [c.name, c]))
   const customClasses = classes.filter(c => !PRESET_NAMES.has(c.name))
   const defaultClass = classes.find(c => c.is_default)
 
-  const openAdd = () => {
-    setForm(EMPTY)
-    setEditTarget(null); setError(''); setModal('form')
-  }
+  // Scan class handlers
+  const openAdd = () => { setForm(EMPTY); setEditTarget(null); setError(''); setModal('form') }
   const openEdit = (sc) => {
     setForm({ name: sc.name, interval_ms: sc.interval_ms, description: sc.description })
     setEditTarget(sc); setError(''); setModal('form')
@@ -77,24 +84,40 @@ export default function ScanClasses() {
     const existing = classByName[preset.name]
     setToggling(preset.name)
     try {
-      if (existing) {
-        await deleteScanClass(existing.id)
-      } else {
-        await createScanClass(preset)
-      }
+      if (existing) await deleteScanClass(existing.id)
+      else await createScanClass(preset)
       await load()
-    } finally {
-      setToggling(null)
-    }
+    } finally { setToggling(null) }
   }
 
   const handleSetDefault = async (sc) => {
-    if (sc.is_default) {
-      await clearDefaultScanClass(sc.id)
-    } else {
-      await setDefaultScanClass(sc.id)
-    }
+    if (sc.is_default) await clearDefaultScanClass(sc.id)
+    else await setDefaultScanClass(sc.id)
     await load()
+  }
+
+  // Telegraf instance handlers
+  const openAddInstance = () => { setInstForm(EMPTY_INSTANCE); setEditTarget(null); setError(''); setModal('instance') }
+  const openEditInstance = (inst) => {
+    setInstForm({ name: inst.name, description: inst.description, enabled: inst.enabled })
+    setEditTarget(inst); setError(''); setModal('instance')
+  }
+
+  const handleSaveInstance = async () => {
+    if (!instForm.name) { setError('Name is required'); return }
+    setSaving(true); setError('')
+    try {
+      if (editTarget) await updateTelegrafInstance(editTarget.id, instForm)
+      else await createTelegrafInstance(instForm)
+      setModal(null); load()
+    } catch (e) {
+      setError(e.response?.data?.detail || 'Save failed')
+    } finally { setSaving(false) }
+  }
+
+  const handleDeleteInstance = async (id) => {
+    if (!confirm('Delete this Telegraf instance? Tags will become unassigned.')) return
+    await deleteTelegrafInstance(id); load()
   }
 
   if (loading) return (
@@ -106,18 +129,86 @@ export default function ScanClasses() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-100">Scan Classes</h1>
+        <h1 className="text-2xl font-bold text-gray-100">Ingestion Settings</h1>
         <p className="text-sm text-gray-400 mt-1">
-          Define read-rate groups for OPC UA tags.
+          Configure read-rate groups and Telegraf container instances.
           {defaultClass && (
             <span className="ml-1">
-              Default: <span className="text-blue-400 font-medium">{defaultClass.name}</span> ({formatInterval(defaultClass.interval_ms)})
+              Default scan class: <span className="text-blue-400 font-medium">{defaultClass.name}</span> ({formatInterval(defaultClass.interval_ms)})
             </span>
           )}
-          {!defaultClass && classes.length > 0 && (
-            <span className="ml-1 text-yellow-400">No default scan class set — click the star on a class to make it the default.</span>
-          )}
         </p>
+      </div>
+
+      {/* Telegraf Instances */}
+      <div className="card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-300">Telegraf Instances</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Define Telegraf containers. Assign tags to instances on the Tag Management page.
+            </p>
+          </div>
+          <button onClick={openAddInstance} className="btn-primary py-1.5 text-sm">
+            <Plus size={14} /> Add Instance
+          </button>
+        </div>
+
+        {instances.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <Server className="mx-auto mb-2 text-gray-600" size={32} />
+            <p className="text-sm">No Telegraf instances defined</p>
+            <p className="text-xs text-gray-600 mt-1">Create at least one instance to generate configs</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-800/50 border-b border-gray-700">
+                <tr>
+                  <th className="table-th">Name</th>
+                  <th className="table-th">Description</th>
+                  <th className="table-th text-center">Devices</th>
+                  <th className="table-th text-center">Tags</th>
+                  <th className="table-th text-center">Status</th>
+                  <th className="table-th text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800">
+                {instances.map(inst => (
+                  <tr key={inst.id} className="hover:bg-gray-800/50">
+                    <td className="table-td font-semibold text-gray-200">
+                      <span className="flex items-center gap-2">
+                        <Server size={14} className="text-blue-400" />
+                        {inst.name}
+                      </span>
+                    </td>
+                    <td className="table-td text-gray-400 text-sm">{inst.description || '—'}</td>
+                    <td className="table-td text-center font-semibold">{inst.device_count}</td>
+                    <td className="table-td text-center">
+                      <span className="flex items-center justify-center gap-1">
+                        <Tag size={12} className="text-gray-500" />
+                        <span className="font-semibold">{inst.tag_count}</span>
+                      </span>
+                    </td>
+                    <td className="table-td text-center">
+                      <span className={`badge ${inst.enabled ? 'badge-green' : 'badge-gray'}`}>
+                        {inst.enabled ? 'Enabled' : 'Disabled'}
+                      </span>
+                    </td>
+                    <td className="table-td">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => openEditInstance(inst)} className="btn-ghost py-1 px-2"><Pencil size={13} /></button>
+                        <button onClick={() => handleDeleteInstance(inst.id)} className="btn-ghost py-1 px-2 text-red-400 hover:bg-red-900/30">
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Preset scan classes */}
@@ -138,7 +229,6 @@ export default function ScanClasses() {
                     : 'border-gray-700 bg-gray-800/50 opacity-60 hover:opacity-100'
                 }`}
               >
-                {/* Enable/disable toggle */}
                 <button
                   onClick={() => handleTogglePreset(preset)}
                   disabled={isToggling || (enabled && existing.tag_count > 0)}
@@ -152,7 +242,6 @@ export default function ScanClasses() {
                   {isToggling ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
                 </button>
 
-                {/* Default star */}
                 {enabled && (
                   <button
                     onClick={() => handleSetDefault(existing)}
@@ -284,6 +373,7 @@ export default function ScanClasses() {
         </div>
       )}
 
+      {/* Scan class modal */}
       <Modal open={modal === 'form'} onClose={() => setModal(null)}
         title={editTarget ? 'Edit Scan Class' : 'New Custom Scan Class'} size="sm">
         <div className="space-y-4">
@@ -309,6 +399,36 @@ export default function ScanClasses() {
         <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-gray-700">
           <button onClick={() => setModal(null)} className="btn-secondary">Cancel</button>
           <button onClick={handleSave} disabled={saving} className="btn-primary">
+            {saving && <Loader2 size={14} className="animate-spin" />} Save
+          </button>
+        </div>
+      </Modal>
+
+      {/* Telegraf instance modal */}
+      <Modal open={modal === 'instance'} onClose={() => setModal(null)}
+        title={editTarget ? 'Edit Telegraf Instance' : 'New Telegraf Instance'} size="sm">
+        <div className="space-y-4">
+          <div>
+            <label className="label">Instance Name *</label>
+            <input className="input" value={instForm.name} onChange={e => setInst('name', e.target.value)}
+              placeholder="e.g. telegraf-plc-line1" />
+          </div>
+          <div>
+            <label className="label">Description</label>
+            <input className="input" value={instForm.description} onChange={e => setInst('description', e.target.value)}
+              placeholder="Tags from PLC line 1" />
+          </div>
+          <div className="flex items-center gap-2">
+            <input type="checkbox" id="inst-enabled" checked={instForm.enabled}
+              onChange={e => setInst('enabled', e.target.checked)}
+              className="rounded border-gray-600 bg-gray-800 text-blue-500" />
+            <label htmlFor="inst-enabled" className="text-sm text-gray-300">Instance enabled</label>
+          </div>
+        </div>
+        {error && <p className="text-sm text-red-400 mt-3 flex items-center gap-1"><AlertCircle size={14} />{error}</p>}
+        <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-gray-700">
+          <button onClick={() => setModal(null)} className="btn-secondary">Cancel</button>
+          <button onClick={handleSaveInstance} disabled={saving} className="btn-primary">
             {saving && <Loader2 size={14} className="animate-spin" />} Save
           </button>
         </div>

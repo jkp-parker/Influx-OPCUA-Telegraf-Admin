@@ -8,6 +8,15 @@ CONFIG_DIR = "/app/data/telegraf-configs"
 CONTAINER_PREFIX = "fluxforge-telegraf-"
 
 
+def _sanitize_container_name(instance_name: str) -> str:
+    """Convert instance name to a valid Docker container name."""
+    import re
+    name = instance_name.lower().replace(" ", "-")
+    name = re.sub(r'[^a-zA-Z0-9_.-]', '-', name)
+    name = re.sub(r'-+', '-', name).strip('-')
+    return name or "unnamed"
+
+
 class DockerService:
     def __init__(self):
         self._client = None
@@ -115,17 +124,20 @@ class DockerService:
 
     def write_config(self, instance_name: str, content: str) -> str:
         os.makedirs(CONFIG_DIR, exist_ok=True)
-        path = os.path.join(CONFIG_DIR, f"telegraf-{instance_name}.conf")
+        safe_name = _sanitize_container_name(instance_name)
+        path = os.path.join(CONFIG_DIR, f"telegraf-{safe_name}.conf")
         with open(path, "w") as f:
             f.write(content)
         return path
 
     def deploy(self, instance_name: str, config_host_path: str,
                telegraf_image: str = TELEGRAF_IMAGE_DEFAULT) -> dict:
-        container_name = f"{CONTAINER_PREFIX}{instance_name}"
+        container_name = f"{CONTAINER_PREFIX}{_sanitize_container_name(instance_name)}"
         self._remove_if_exists(container_name)
 
-        config_file = os.path.join(config_host_path, f"telegraf-{instance_name}.conf")
+        config_file = os.path.join(config_host_path, f"telegraf-{_sanitize_container_name(instance_name)}.conf")
+        # Host path to the data directory (parent of telegraf-configs)
+        data_host_path = os.path.dirname(config_host_path)
         container = self.client.containers.run(
             image=telegraf_image,
             name=container_name,
@@ -133,7 +145,8 @@ class DockerService:
             restart_policy={"Name": "unless-stopped"},
             network_mode="host",
             volumes={
-                config_file: {"bind": "/etc/telegraf/telegraf.conf", "mode": "ro"}
+                config_file: {"bind": "/etc/telegraf/telegraf.conf", "mode": "ro"},
+                data_host_path: {"bind": "/app/data", "mode": "ro"},
             },
         )
         return {
@@ -143,7 +156,7 @@ class DockerService:
         }
 
     def get_status(self, instance_name: str) -> dict:
-        container_name = f"{CONTAINER_PREFIX}{instance_name}"
+        container_name = f"{CONTAINER_PREFIX}{_sanitize_container_name(instance_name)}"
         try:
             container = self.client.containers.get(container_name)
             return {
@@ -163,7 +176,7 @@ class DockerService:
             }
 
     def stop(self, instance_name: str) -> dict:
-        container_name = f"{CONTAINER_PREFIX}{instance_name}"
+        container_name = f"{CONTAINER_PREFIX}{_sanitize_container_name(instance_name)}"
         try:
             container = self.client.containers.get(container_name)
             container.stop(timeout=10)
@@ -172,7 +185,7 @@ class DockerService:
             return {"status": "error", "error": str(e)}
 
     def restart(self, instance_name: str) -> dict:
-        container_name = f"{CONTAINER_PREFIX}{instance_name}"
+        container_name = f"{CONTAINER_PREFIX}{_sanitize_container_name(instance_name)}"
         try:
             container = self.client.containers.get(container_name)
             container.restart(timeout=10)
@@ -181,7 +194,7 @@ class DockerService:
             return {"status": "error", "error": str(e)}
 
     def remove(self, instance_name: str) -> dict:
-        container_name = f"{CONTAINER_PREFIX}{instance_name}"
+        container_name = f"{CONTAINER_PREFIX}{_sanitize_container_name(instance_name)}"
         try:
             self._remove_if_exists(container_name)
             return {"status": "removed"}
@@ -189,7 +202,7 @@ class DockerService:
             return {"status": "error", "error": str(e)}
 
     def get_logs(self, instance_name: str, tail: int = 100) -> str:
-        container_name = f"{CONTAINER_PREFIX}{instance_name}"
+        container_name = f"{CONTAINER_PREFIX}{_sanitize_container_name(instance_name)}"
         try:
             container = self.client.containers.get(container_name)
             return container.logs(tail=tail, timestamps=True).decode("utf-8", errors="replace")

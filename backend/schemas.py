@@ -144,6 +144,7 @@ class TagBase(BaseModel):
     data_type: Optional[str] = ""
     measurement_name: Optional[str] = ""
     scan_class_id: Optional[int] = None
+    telegraf_instance_id: Optional[int] = None
     enabled: Optional[bool] = True
 
 
@@ -154,6 +155,7 @@ class TagCreate(TagBase):
 class TagUpdate(BaseModel):
     measurement_name: Optional[str] = None
     scan_class_id: Optional[int] = None
+    telegraf_instance_id: Optional[int] = None
     enabled: Optional[bool] = None
 
 
@@ -162,6 +164,7 @@ class TagOut(TagBase):
     device_id: int
     created_at: datetime
     scan_class_name: Optional[str] = None
+    telegraf_instance_name: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -181,6 +184,7 @@ class NodeIncludeBase(BaseModel):
     display_name: str
     measurement_name: Optional[str] = ""
     scan_class_id: Optional[int] = None
+    telegraf_instance_id: Optional[int] = None
     enabled: Optional[bool] = True
 
 
@@ -191,6 +195,7 @@ class NodeIncludeCreate(NodeIncludeBase):
 class NodeIncludeUpdate(BaseModel):
     measurement_name: Optional[str] = None
     scan_class_id: Optional[int] = None
+    telegraf_instance_id: Optional[int] = None
     enabled: Optional[bool] = None
 
 
@@ -199,6 +204,7 @@ class NodeIncludeOut(NodeIncludeBase):
     device_id: int
     created_at: datetime
     scan_class_name: Optional[str] = None
+    telegraf_instance_name: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -272,6 +278,7 @@ class InfluxTestRequest(BaseModel):
     url: str
     token: str
     org: Optional[str] = ""
+    version: Optional[int] = 2
 
 
 class OpcuaNodeOut(BaseModel):

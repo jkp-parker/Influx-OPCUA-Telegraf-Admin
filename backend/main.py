@@ -38,7 +38,19 @@ def _migrate():
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE devices ADD COLUMN telegraf_instance_id INTEGER REFERENCES telegraf_instances(id)"))
 
-    # Auto-create a default TelegrafInstance and assign unassigned devices
+    if "tags" in insp.get_table_names():
+        cols = [c["name"] for c in insp.get_columns("tags")]
+        if "telegraf_instance_id" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE tags ADD COLUMN telegraf_instance_id INTEGER REFERENCES telegraf_instances(id)"))
+
+    if "node_includes" in insp.get_table_names():
+        cols = [c["name"] for c in insp.get_columns("node_includes")]
+        if "telegraf_instance_id" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE node_includes ADD COLUMN telegraf_instance_id INTEGER REFERENCES telegraf_instances(id)"))
+
+    # Auto-create a default TelegrafInstance and assign unassigned tags
     if "telegraf_instances" in insp.get_table_names():
         db = SessionLocal()
         try:
@@ -49,11 +61,12 @@ def _migrate():
                 default_inst = models.TelegrafInstance(name="default", description="Default Telegraf instance")
                 db.add(default_inst)
                 db.flush()
-            unassigned = db.query(models.Device).filter(
-                models.Device.telegraf_instance_id == None
+            # Assign unassigned tags to the default instance
+            unassigned_tags = db.query(models.Tag).filter(
+                models.Tag.telegraf_instance_id == None
             ).all()
-            for dev in unassigned:
-                dev.telegraf_instance_id = default_inst.id
+            for tag in unassigned_tags:
+                tag.telegraf_instance_id = default_inst.id
             db.commit()
         finally:
             db.close()

@@ -2,10 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session, joinedload
 from typing import Optional, List
 from database import get_db, SessionLocal
+import logging
 import models
 import schemas
 from services import opcua_service
 from schemas import OpcuaTestRequest
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/devices", tags=["devices"])
 
@@ -60,6 +63,7 @@ def _expand_node_includes(device_id: int, db: Session):
                 data_type=node.get("data_type", ""),
                 measurement_name=ni.measurement_name,
                 scan_class_id=ni.scan_class_id,
+                telegraf_instance_id=ni.telegraf_instance_id,
                 enabled=True,
             )
             db.add(tag)
@@ -73,7 +77,8 @@ def _expand_node_includes(device_id: int, db: Session):
 @router.get("", response_model=list[schemas.DeviceOut])
 def list_devices(db: Session = Depends(get_db)):
     devices = db.query(models.Device).options(
-        joinedload(models.Device.influxdb_config)
+        joinedload(models.Device.influxdb_config),
+        joinedload(models.Device.telegraf_instance),
     ).order_by(models.Device.name).all()
     result = []
     for d in devices:
@@ -85,6 +90,7 @@ def list_devices(db: Session = Depends(get_db)):
         out.tag_count = tag_count
         out.enabled_tag_count = enabled_tag_count
         out.influxdb_name = d.influxdb_config.name if d.influxdb_config else None
+        out.telegraf_instance_name = d.telegraf_instance.name if d.telegraf_instance else None
         result.append(out)
     return result
 
@@ -116,7 +122,8 @@ def test_connection_unsaved(payload: OpcuaTestRequest):
 @router.get("/{device_id}", response_model=schemas.DeviceOut)
 def get_device(device_id: int, db: Session = Depends(get_db)):
     device = db.query(models.Device).options(
-        joinedload(models.Device.influxdb_config)
+        joinedload(models.Device.influxdb_config),
+        joinedload(models.Device.telegraf_instance),
     ).filter(models.Device.id == device_id).first()
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
@@ -128,6 +135,7 @@ def get_device(device_id: int, db: Session = Depends(get_db)):
     out.tag_count = tag_count
     out.enabled_tag_count = enabled_tag_count
     out.influxdb_name = device.influxdb_config.name if device.influxdb_config else None
+    out.telegraf_instance_name = device.telegraf_instance.name if device.telegraf_instance else None
     return out
 
 
@@ -267,12 +275,14 @@ def get_device_tags(device_id: int, db: Session = Depends(get_db)):
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
     tags = db.query(models.Tag).options(
-        joinedload(models.Tag.scan_class)
+        joinedload(models.Tag.scan_class),
+        joinedload(models.Tag.telegraf_instance),
     ).filter(models.Tag.device_id == device_id).all()
     result = []
     for tag in tags:
         out = schemas.TagOut.model_validate(tag)
         out.scan_class_name = tag.scan_class.name if tag.scan_class else None
+        out.telegraf_instance_name = tag.telegraf_instance.name if tag.telegraf_instance else None
         result.append(out)
     return result
 
@@ -283,6 +293,12 @@ def save_device_tags(device_id: int, payload: schemas.BulkTagSave, db: Session =
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
+
+    # Debug: log instance IDs being saved
+    inst_counts = {}
+    for t in payload.tags:
+        inst_counts[t.telegraf_instance_id] = inst_counts.get(t.telegraf_instance_id, 0) + 1
+    logger.warning(f"save_device_tags: device={device_id}, total={len(payload.tags)}, instance_ids={inst_counts}")
 
     # Delete existing tags
     db.query(models.Tag).filter(models.Tag.device_id == device_id).delete()
@@ -304,12 +320,22 @@ def update_tag(device_id: int, tag_id: int, payload: schemas.TagUpdate, db: Sess
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
     update_data = payload.model_dump(exclude_none=True)
+    # Allow explicitly setting telegraf_instance_id to null (0 means unset)
+    if payload.telegraf_instance_id is not None:
+        if payload.telegraf_instance_id == 0:
+            tag.telegraf_instance_id = None
+            update_data.pop("telegraf_instance_id", None)
     for field, value in update_data.items():
         setattr(tag, field, value)
     db.commit()
     db.refresh(tag)
+    tag = db.query(models.Tag).options(
+        joinedload(models.Tag.scan_class),
+        joinedload(models.Tag.telegraf_instance),
+    ).filter(models.Tag.id == tag_id).first()
     out = schemas.TagOut.model_validate(tag)
     out.scan_class_name = tag.scan_class.name if tag.scan_class else None
+    out.telegraf_instance_name = tag.telegraf_instance.name if tag.telegraf_instance else None
     return out
 
 
@@ -333,12 +359,14 @@ def get_device_node_includes(device_id: int, db: Session = Depends(get_db)):
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
     includes = db.query(models.NodeInclude).options(
-        joinedload(models.NodeInclude.scan_class)
+        joinedload(models.NodeInclude.scan_class),
+        joinedload(models.NodeInclude.telegraf_instance),
     ).filter(models.NodeInclude.device_id == device_id).all()
     result = []
     for ni in includes:
         out = schemas.NodeIncludeOut.model_validate(ni)
         out.scan_class_name = ni.scan_class.name if ni.scan_class else None
+        out.telegraf_instance_name = ni.telegraf_instance.name if ni.telegraf_instance else None
         result.append(out)
     return result
 
@@ -362,8 +390,13 @@ def create_node_include(device_id: int, payload: schemas.NodeIncludeCreate, db: 
     # Persist matching tags from scan cache if available
     _expand_node_includes(device_id, db)
 
+    ni = db.query(models.NodeInclude).options(
+        joinedload(models.NodeInclude.scan_class),
+        joinedload(models.NodeInclude.telegraf_instance),
+    ).filter(models.NodeInclude.id == ni.id).first()
     out = schemas.NodeIncludeOut.model_validate(ni)
     out.scan_class_name = ni.scan_class.name if ni.scan_class else None
+    out.telegraf_instance_name = ni.telegraf_instance.name if ni.telegraf_instance else None
     return out
 
 
@@ -375,12 +408,20 @@ def update_node_include(device_id: int, include_id: int, payload: schemas.NodeIn
     if not ni:
         raise HTTPException(status_code=404, detail="Node include not found")
     update_data = payload.model_dump(exclude_none=True)
+    if payload.telegraf_instance_id is not None:
+        if payload.telegraf_instance_id == 0:
+            ni.telegraf_instance_id = None
+            update_data.pop("telegraf_instance_id", None)
     for field, value in update_data.items():
         setattr(ni, field, value)
     db.commit()
-    db.refresh(ni)
+    ni = db.query(models.NodeInclude).options(
+        joinedload(models.NodeInclude.scan_class),
+        joinedload(models.NodeInclude.telegraf_instance),
+    ).filter(models.NodeInclude.id == ni.id).first()
     out = schemas.NodeIncludeOut.model_validate(ni)
     out.scan_class_name = ni.scan_class.name if ni.scan_class else None
+    out.telegraf_instance_name = ni.telegraf_instance.name if ni.telegraf_instance else None
     return out
 
 

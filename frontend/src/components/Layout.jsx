@@ -8,10 +8,10 @@ import { getSystemConfig } from '../services/api'
 
 const mainNavItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true },
+  { to: '/influxdb', icon: Database, label: 'InfluxDB Targets' },
+  { to: '/scan-classes', icon: Clock, label: 'Ingestion Settings' },
   { to: '/devices', icon: Server, label: 'OPC UA Devices' },
   { to: '/tags', icon: Tag, label: 'Tag Management' },
-  { to: '/scan-classes', icon: Clock, label: 'Scan Classes' },
-  { to: '/influxdb', icon: Database, label: 'InfluxDB Targets' },
   { to: '/telegraf', icon: FileCode, label: 'Telegraf Config' },
   { to: '/deploy', icon: Rocket, label: 'Deployment' },
 ]

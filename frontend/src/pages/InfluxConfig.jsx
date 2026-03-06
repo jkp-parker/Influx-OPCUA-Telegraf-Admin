@@ -82,7 +82,7 @@ export default function InfluxConfig() {
     }
     setModalTesting(true); setModalTestResult(null)
     try {
-      const result = await testInfluxConnectionRaw({ url: form.url, token: form.token, org: form.org })
+      const result = await testInfluxConnectionRaw({ url: form.url, token: form.token, org: form.org, version: form.version || 2 })
       setModalTestResult(result)
     } catch {
       setModalTestResult({ success: false, message: 'Request failed' })

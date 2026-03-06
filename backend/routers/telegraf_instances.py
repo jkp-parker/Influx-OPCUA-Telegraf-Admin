@@ -40,18 +40,21 @@ def _get_default_scan_class(db: Session):
 
 
 def _instance_out(inst, db: Session) -> schemas.TelegrafInstanceOut:
-    tag_count = db.query(models.Tag).join(models.Device).filter(
-        models.Device.telegraf_instance_id == inst.id,
+    tag_count = db.query(models.Tag).filter(
+        models.Tag.telegraf_instance_id == inst.id,
         models.Tag.enabled == True,
     ).count()
-    device_count = db.query(models.Device).filter(
-        models.Device.telegraf_instance_id == inst.id,
-    ).count()
+    # Count distinct devices that have tags assigned to this instance
+    device_count = db.query(models.Tag.device_id).filter(
+        models.Tag.telegraf_instance_id == inst.id,
+    ).distinct().count()
     out = schemas.TelegrafInstanceOut.model_validate(inst)
     out.device_count = device_count
     out.tag_count = tag_count
     return out
 
+
+# --- Static routes MUST come before /{instance_id} routes ---
 
 @router.get("", response_model=list[schemas.TelegrafInstanceOut])
 def list_instances(db: Session = Depends(get_db)):
@@ -88,6 +91,85 @@ def create_instance(payload: schemas.TelegrafInstanceCreate, db: Session = Depen
     db.refresh(inst)
     return _instance_out(inst, db)
 
+
+@router.get("/configs", response_model=list[schemas.TelegrafInstanceConfigOut])
+def get_all_configs(db: Session = Depends(get_db)):
+    """Get generated configs for all instances (per-tag assignment)."""
+    instances = db.query(models.TelegrafInstance).filter(
+        models.TelegrafInstance.enabled == True
+    ).order_by(models.TelegrafInstance.name).all()
+
+    system_cfg = _get_config_dict(db)
+    default_influx = _get_default_influxdb(db)
+    default_sc = _get_default_scan_class(db)
+
+    result = []
+    for inst in instances:
+        # Get all tags assigned to this instance
+        tags = db.query(models.Tag).options(
+            joinedload(models.Tag.scan_class),
+            joinedload(models.Tag.device).joinedload(models.Device.influxdb_config),
+        ).filter(
+            models.Tag.telegraf_instance_id == inst.id,
+            models.Tag.enabled == True,
+        ).all()
+
+        if not tags:
+            continue
+
+        config = telegraf_generator.generate_config_from_tags(
+            tags, system_cfg, default_influx,
+            scan_cache=_scan_cache, default_scan_class=default_sc,
+        )
+        device_ids = set(t.device_id for t in tags)
+        result.append(schemas.TelegrafInstanceConfigOut(
+            instance_id=inst.id,
+            instance_name=inst.name,
+            config=config,
+            device_count=len(device_ids),
+            tag_count=len(tags),
+        ))
+    return result
+
+
+@router.post("/auto-create")
+def auto_create_instances(db: Session = Depends(get_db)):
+    """Create one TelegrafInstance per device."""
+    devices = db.query(models.Device).filter(models.Device.enabled == True).all()
+    created = 0
+    for dev in devices:
+        safe_name = f"telegraf-{dev.name.lower().replace(' ', '-')}"
+        existing = db.query(models.TelegrafInstance).filter(
+            models.TelegrafInstance.name == safe_name
+        ).first()
+        if existing:
+            dev.telegraf_instance_id = existing.id
+            continue
+        inst = models.TelegrafInstance(
+            name=safe_name,
+            description=f"Auto-created for device: {dev.name}",
+        )
+        db.add(inst)
+        db.flush()
+        dev.telegraf_instance_id = inst.id
+        created += 1
+
+    db.commit()
+    return {"created": created, "total_devices": len(devices)}
+
+
+@router.get("/suggest-splits", response_model=list[schemas.SplitSuggestion])
+def get_split_suggestions(db: Session = Depends(get_db)):
+    """Get suggestions for splitting devices across instances."""
+    devices = db.query(models.Device).options(
+        joinedload(models.Device.tags).joinedload(models.Tag.scan_class),
+    ).filter(models.Device.enabled == True).all()
+
+    suggestions = telegraf_generator.suggest_splits(devices)
+    return [schemas.SplitSuggestion(**s) for s in suggestions]
+
+
+# --- Parameterized /{instance_id} routes ---
 
 @router.get("/{instance_id}", response_model=schemas.TelegrafInstanceOut)
 def get_instance(instance_id: int, db: Session = Depends(get_db)):
@@ -165,9 +247,15 @@ def get_instance_config(instance_id: int, db: Session = Depends(get_db)):
     system_cfg = _get_config_dict(db)
     default_influx = _get_default_influxdb(db)
     default_sc = _get_default_scan_class(db)
-    devices = [d for d in inst.devices if d.enabled]
-    content = telegraf_generator.generate_config(
-        devices, system_cfg, default_influx,
+    tags = db.query(models.Tag).options(
+        joinedload(models.Tag.scan_class),
+        joinedload(models.Tag.device).joinedload(models.Device.influxdb_config),
+    ).filter(
+        models.Tag.telegraf_instance_id == instance_id,
+        models.Tag.enabled == True,
+    ).all()
+    content = telegraf_generator.generate_config_from_tags(
+        tags, system_cfg, default_influx,
         scan_cache=_scan_cache, default_scan_class=default_sc,
     )
     return PlainTextResponse(content=content)
@@ -179,9 +267,15 @@ def download_instance_config(instance_id: int, db: Session = Depends(get_db)):
     system_cfg = _get_config_dict(db)
     default_influx = _get_default_influxdb(db)
     default_sc = _get_default_scan_class(db)
-    devices = [d for d in inst.devices if d.enabled]
-    content = telegraf_generator.generate_config(
-        devices, system_cfg, default_influx,
+    tags = db.query(models.Tag).options(
+        joinedload(models.Tag.scan_class),
+        joinedload(models.Tag.device).joinedload(models.Device.influxdb_config),
+    ).filter(
+        models.Tag.telegraf_instance_id == instance_id,
+        models.Tag.enabled == True,
+    ).all()
+    content = telegraf_generator.generate_config_from_tags(
+        tags, system_cfg, default_influx,
         scan_cache=_scan_cache, default_scan_class=default_sc,
     )
     filename = f"telegraf-{inst.name}.conf"
@@ -190,76 +284,3 @@ def download_instance_config(instance_id: int, db: Session = Depends(get_db)):
         media_type="text/plain",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
-
-
-@router.get("/configs", response_model=list[schemas.TelegrafInstanceConfigOut])
-def get_all_configs(db: Session = Depends(get_db)):
-    """Get generated configs for all instances (for multi-tab view)."""
-    instances = db.query(models.TelegrafInstance).options(
-        joinedload(models.TelegrafInstance.devices)
-        .joinedload(models.Device.tags)
-        .joinedload(models.Tag.scan_class),
-        joinedload(models.TelegrafInstance.devices)
-        .joinedload(models.Device.node_includes)
-        .joinedload(models.NodeInclude.scan_class),
-        joinedload(models.TelegrafInstance.devices)
-        .joinedload(models.Device.influxdb_config),
-    ).filter(models.TelegrafInstance.enabled == True).order_by(
-        models.TelegrafInstance.name
-    ).all()
-
-    system_cfg = _get_config_dict(db)
-    default_influx = _get_default_influxdb(db)
-    default_sc = _get_default_scan_class(db)
-    configs = telegraf_generator.generate_instance_configs(
-        instances, system_cfg, default_influx,
-        scan_cache=_scan_cache, default_scan_class=default_sc,
-    )
-
-    result = []
-    for inst_id, data in configs.items():
-        result.append(schemas.TelegrafInstanceConfigOut(
-            instance_id=inst_id,
-            instance_name=data["name"],
-            config=data["config"],
-            device_count=data["device_count"],
-            tag_count=data["tag_count"],
-        ))
-    return result
-
-
-@router.post("/auto-create")
-def auto_create_instances(db: Session = Depends(get_db)):
-    """Create one TelegrafInstance per device."""
-    devices = db.query(models.Device).filter(models.Device.enabled == True).all()
-    created = 0
-    for dev in devices:
-        safe_name = f"telegraf-{dev.name.lower().replace(' ', '-')}"
-        existing = db.query(models.TelegrafInstance).filter(
-            models.TelegrafInstance.name == safe_name
-        ).first()
-        if existing:
-            dev.telegraf_instance_id = existing.id
-            continue
-        inst = models.TelegrafInstance(
-            name=safe_name,
-            description=f"Auto-created for device: {dev.name}",
-        )
-        db.add(inst)
-        db.flush()
-        dev.telegraf_instance_id = inst.id
-        created += 1
-
-    db.commit()
-    return {"created": created, "total_devices": len(devices)}
-
-
-@router.get("/suggest-splits", response_model=list[schemas.SplitSuggestion])
-def get_split_suggestions(db: Session = Depends(get_db)):
-    """Get suggestions for splitting devices across instances."""
-    devices = db.query(models.Device).options(
-        joinedload(models.Device.tags).joinedload(models.Tag.scan_class),
-    ).filter(models.Device.enabled == True).all()
-
-    suggestions = telegraf_generator.suggest_splits(devices)
-    return [schemas.SplitSuggestion(**s) for s in suggestions]

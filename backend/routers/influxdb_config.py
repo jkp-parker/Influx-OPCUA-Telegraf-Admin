@@ -40,7 +40,7 @@ def create_config(payload: schemas.InfluxDBConfigCreate, db: Session = Depends(g
 @router.post("/test-connection")
 def test_connection_unsaved(payload: InfluxTestRequest):
     """Test an InfluxDB connection without saving the config first."""
-    return influxdb_service.test_connection(payload.url, payload.token, payload.org)
+    return influxdb_service.test_connection(payload.url, payload.token, payload.org, version=payload.version)
 
 
 @router.get("/{cfg_id}", response_model=schemas.InfluxDBConfigOut)
@@ -93,7 +93,7 @@ def test_connection(cfg_id: int, db: Session = Depends(get_db)):
     cfg = db.query(models.InfluxDBConfig).filter(models.InfluxDBConfig.id == cfg_id).first()
     if not cfg:
         raise HTTPException(status_code=404, detail="InfluxDB config not found")
-    return influxdb_service.test_connection(cfg.url, cfg.token, cfg.org)
+    return influxdb_service.test_connection(cfg.url, cfg.token, cfg.org, version=cfg.version or 2)
 
 
 @router.get("/{cfg_id}/buckets")
@@ -102,7 +102,7 @@ def list_buckets(cfg_id: int, db: Session = Depends(get_db)):
     if not cfg:
         raise HTTPException(status_code=404, detail="InfluxDB config not found")
     try:
-        buckets = influxdb_service.list_buckets(cfg.url, cfg.token, cfg.org)
+        buckets = influxdb_service.list_buckets(cfg.url, cfg.token, cfg.org, version=cfg.version or 2)
         return {"buckets": buckets}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

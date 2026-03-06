@@ -88,10 +88,12 @@ class Tag(Base):
     data_type = Column(String, default="")
     measurement_name = Column(String, default="")
     scan_class_id = Column(Integer, ForeignKey("scan_classes.id"), nullable=True)
+    telegraf_instance_id = Column(Integer, ForeignKey("telegraf_instances.id"), nullable=True)
     enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     device = relationship("Device", back_populates="tags")
     scan_class = relationship("ScanClass", back_populates="tags")
+    telegraf_instance = relationship("TelegrafInstance")
 
 
 class NodeInclude(Base):
@@ -107,7 +109,9 @@ class NodeInclude(Base):
     display_name = Column(String, nullable=False)
     measurement_name = Column(String, default="")
     scan_class_id = Column(Integer, ForeignKey("scan_classes.id"), nullable=True)
+    telegraf_instance_id = Column(Integer, ForeignKey("telegraf_instances.id"), nullable=True)
     enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     device = relationship("Device", back_populates="node_includes")
     scan_class = relationship("ScanClass", back_populates="node_includes")
+    telegraf_instance = relationship("TelegrafInstance")

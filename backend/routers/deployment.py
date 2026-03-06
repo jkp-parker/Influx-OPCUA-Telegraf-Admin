@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 from database import get_db
 import models
 import schemas
-from services.docker_service import docker_service
+from services.docker_service import docker_service, _sanitize_container_name
 from services import telegraf_generator
 from routers.system import _get_config_dict, _set_key
 from routers.devices import _scan_cache
@@ -65,7 +65,7 @@ def get_deployment_status(db: Session = Depends(get_db)):
     container_statuses = []
     for inst in instances:
         status_info = docker_service.get_status(inst.name) if available else {
-            "container_name": f"fluxforge-telegraf-{inst.name}",
+            "container_name": f"fluxforge-telegraf-{_sanitize_container_name(inst.name)}",
             "status": "not_created",
             "health": None,
             "started_at": None,
@@ -104,25 +104,24 @@ def deploy_instance(instance_id: int, db: Session = Depends(get_db)):
     if not docker_service.is_available():
         raise HTTPException(status_code=503, detail="Docker is not available")
 
-    inst = db.query(models.TelegrafInstance).options(
-        joinedload(models.TelegrafInstance.devices)
-        .joinedload(models.Device.tags)
-        .joinedload(models.Tag.scan_class),
-        joinedload(models.TelegrafInstance.devices)
-        .joinedload(models.Device.node_includes)
-        .joinedload(models.NodeInclude.scan_class),
-        joinedload(models.TelegrafInstance.devices)
-        .joinedload(models.Device.influxdb_config),
-    ).filter(models.TelegrafInstance.id == instance_id).first()
+    inst = db.query(models.TelegrafInstance).filter(
+        models.TelegrafInstance.id == instance_id
+    ).first()
     if not inst:
         raise HTTPException(status_code=404, detail="Telegraf instance not found")
 
     system_cfg = _get_config_dict(db)
     default_influx = _get_default_influxdb(db)
     default_sc = _get_default_scan_class(db)
-    devices = [d for d in inst.devices if d.enabled]
-    config_content = telegraf_generator.generate_config(
-        devices, system_cfg, default_influx,
+    tags = db.query(models.Tag).options(
+        joinedload(models.Tag.scan_class),
+        joinedload(models.Tag.device).joinedload(models.Device.influxdb_config),
+    ).filter(
+        models.Tag.telegraf_instance_id == instance_id,
+        models.Tag.enabled == True,
+    ).all()
+    config_content = telegraf_generator.generate_config_from_tags(
+        tags, system_cfg, default_influx,
         scan_cache=_scan_cache, default_scan_class=default_sc,
     )
 
@@ -184,16 +183,9 @@ def deploy_all(db: Session = Depends(get_db)):
     if not docker_service.is_available():
         raise HTTPException(status_code=503, detail="Docker is not available")
 
-    instances = db.query(models.TelegrafInstance).options(
-        joinedload(models.TelegrafInstance.devices)
-        .joinedload(models.Device.tags)
-        .joinedload(models.Tag.scan_class),
-        joinedload(models.TelegrafInstance.devices)
-        .joinedload(models.Device.node_includes)
-        .joinedload(models.NodeInclude.scan_class),
-        joinedload(models.TelegrafInstance.devices)
-        .joinedload(models.Device.influxdb_config),
-    ).filter(models.TelegrafInstance.enabled == True).all()
+    instances = db.query(models.TelegrafInstance).filter(
+        models.TelegrafInstance.enabled == True
+    ).all()
 
     system_cfg = _get_config_dict(db)
     default_influx = _get_default_influxdb(db)
@@ -201,9 +193,15 @@ def deploy_all(db: Session = Depends(get_db)):
 
     results = []
     for inst in instances:
-        devices = [d for d in inst.devices if d.enabled]
-        config_content = telegraf_generator.generate_config(
-            devices, system_cfg, default_influx,
+        tags = db.query(models.Tag).options(
+            joinedload(models.Tag.scan_class),
+            joinedload(models.Tag.device).joinedload(models.Device.influxdb_config),
+        ).filter(
+            models.Tag.telegraf_instance_id == inst.id,
+            models.Tag.enabled == True,
+        ).all()
+        config_content = telegraf_generator.generate_config_from_tags(
+            tags, system_cfg, default_influx,
             scan_cache=_scan_cache, default_scan_class=default_sc,
         )
         docker_service.write_config(inst.name, config_content)

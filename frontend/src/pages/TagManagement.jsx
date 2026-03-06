@@ -9,6 +9,7 @@ import {
   listDevices, getDeviceTags, saveDeviceTags, listScanClasses,
   patchTag, deleteTag, getScanStatus, startScan, readTagValues,
   getDeviceNodeIncludes, createNodeInclude, patchNodeInclude, deleteNodeInclude as deleteNodeIncludeApi,
+  listTelegrafInstances,
 } from '../services/api'
 import Modal from '../components/Modal'
 
@@ -183,6 +184,7 @@ export default function TagManagement() {
   const [devices, setDevices] = useState([])
   const [mergedTags, setMergedTags] = useState([])
   const [scanClasses, setScanClasses] = useState([])
+  const [telegrafInstances, setTelegrafInstances] = useState([])
   const [loading, setLoading] = useState(true)
   const [savedTagsByDevice, setSavedTagsByDevice] = useState({})
   const [nodeIncludesByDevice, setNodeIncludesByDevice] = useState({})
@@ -198,6 +200,7 @@ export default function TagManagement() {
   const [filterDataType, setFilterDataType] = useState('')
   const [filterEnabled, setFilterEnabled] = useState('')
   const [filterNs, setFilterNs] = useState('')
+  const [filterInstance, setFilterInstance] = useState('')
 
   // Sort
   const [sortKey, setSortKey] = useState('display_name')
@@ -208,6 +211,8 @@ export default function TagManagement() {
 
   // Bulk actions
   const [bulkScanClass, setBulkScanClass] = useState('')
+  const [bulkInstance, setBulkInstance] = useState('')
+  const [bulkCollectInstance, setBulkCollectInstance] = useState('')
 
   // Grouping / View style
   const [groupBy, setGroupBy] = useState('tree')
@@ -238,6 +243,7 @@ export default function TagManagement() {
     100,  // type
     130,  // measurement
     120,  // scan class
+    120,  // telegraf instance
     70,   // enabled
     40,   // actions
   ])
@@ -254,6 +260,7 @@ export default function TagManagement() {
     100,  // type
     130,  // measurement
     120,  // scan class
+    120,  // telegraf instance
     70,   // enabled
     40,   // actions
   ])
@@ -261,9 +268,10 @@ export default function TagManagement() {
   const loadAll = async () => {
     setLoading(true)
     try {
-      const [devs, scs] = await Promise.all([listDevices(), listScanClasses()])
+      const [devs, scs, tInst] = await Promise.all([listDevices(), listScanClasses(), listTelegrafInstances()])
       setDevices(devs)
       setScanClasses(scs)
+      setTelegrafInstances(tInst)
 
       const perDevice = await Promise.all(devs.map(async (d) => {
         const [tags, scanResult, nodeIncludes] = await Promise.all([
@@ -308,6 +316,8 @@ export default function TagManagement() {
             measurement_name: saved?.measurement_name || '',
             scan_class_id: saved?.scan_class_id || null,
             scan_class_name: saved?.scan_class_name || '',
+            telegraf_instance_id: saved?.telegraf_instance_id || null,
+            telegraf_instance_name: saved?.telegraf_instance_name || '',
             enabled: saved?.enabled ?? false,
           })
         }
@@ -329,6 +339,8 @@ export default function TagManagement() {
               measurement_name: tag.measurement_name || '',
               scan_class_id: tag.scan_class_id || null,
               scan_class_name: tag.scan_class_name || '',
+              telegraf_instance_id: tag.telegraf_instance_id || null,
+              telegraf_instance_name: tag.telegraf_instance_name || '',
               enabled: tag.enabled,
             })
           }
@@ -345,6 +357,14 @@ export default function TagManagement() {
             if (tag.path.startsWith(prefix) || tag.path === ni.parent_path) {
               tag.is_collected = true
               tag.collected_via_include = true
+              if (ni.telegraf_instance_id) {
+                tag.telegraf_instance_id = ni.telegraf_instance_id
+                tag.telegraf_instance_name = ni.telegraf_instance_name || ''
+              }
+              if (ni.scan_class_id) {
+                tag.scan_class_id = ni.scan_class_id
+                tag.scan_class_name = ni.scan_class_name || ''
+              }
               break
             }
           }
@@ -411,6 +431,10 @@ export default function TagManagement() {
         if (filterEnabled === 'true' && !t.enabled) return false
         if (filterEnabled === 'false' && t.enabled) return false
         if (filterNs !== '' && t.namespace !== Number(filterNs)) return false
+        if (filterInstance) {
+          if (filterInstance === '__none__' && t.telegraf_instance_id) return false
+          if (filterInstance !== '__none__' && t.telegraf_instance_id !== Number(filterInstance)) return false
+        }
         return true
       })
       .sort((a, b) => {
@@ -421,7 +445,7 @@ export default function TagManagement() {
           : String(av).localeCompare(String(bv))
         return sortDir === 'asc' ? cmp : -cmp
       })
-  }, [mergedTags, viewMode, search, wildcardPattern, filterDevice, filterScanClass, filterDataType, filterEnabled, filterNs, sortKey, sortDir])
+  }, [mergedTags, viewMode, search, wildcardPattern, filterDevice, filterScanClass, filterDataType, filterEnabled, filterNs, filterInstance, sortKey, sortDir])
 
   // Build tree from filtered data
   const tree = useMemo(() => buildTree(filtered), [filtered])
@@ -593,7 +617,7 @@ export default function TagManagement() {
 
   // ── Actions for adding tags to collection ──
 
-  const handleAddToCollection = async (tags, scanClassId) => {
+  const handleAddToCollection = async (tags, scanClassId, instanceId) => {
     const byDevice = new Map()
     for (const tag of tags) {
       if (tag.is_collected) continue
@@ -620,6 +644,7 @@ export default function TagManagement() {
           data_type: tag.data_type,
           measurement_name: '',
           scan_class_id: scanClassId || null,
+          telegraf_instance_id: instanceId ?? null,
           enabled: true,
         })
       }
@@ -630,13 +655,14 @@ export default function TagManagement() {
 
   // ── Branch subscription ──
 
-  const handleAddBranchSubscription = async (node, scanClassId) => {
+  const handleAddBranchSubscription = async (node, scanClassId, instanceId) => {
     await createNodeInclude(node.device_id, {
       device_id: node.device_id,
       parent_node_id: `path:${node.path || node.label}`,
       parent_path: node.path || node.label,
       display_name: node.label,
       scan_class_id: scanClassId || null,
+      telegraf_instance_id: instanceId ?? null,
       enabled: true,
     })
     await loadAll()
@@ -676,19 +702,21 @@ export default function TagManagement() {
     const scId = bulkScanClass && bulkScanClass !== '__none__'
       ? Number(bulkScanClass)
       : (defaultScanClass?.id || null)
+    const instId = bulkCollectInstance ? Number(bulkCollectInstance) : (telegrafInstances[0]?.id || null)
 
     // Check for complete branch selection in tree view
     if (groupBy === 'tree') {
       const branch = findCompleteBranch(tree)
       if (branch && branch.type === 'folder') {
-        setBranchDialog({ node: branch, uncollectedTags: tags, scanClassId: scId })
+        setBranchDialog({ node: branch, uncollectedTags: tags, scanClassId: scId, instanceId: instId })
         setBranchScanClass(scId ? String(scId) : '')
         return
       }
     }
 
-    await handleAddToCollection(tags, scId)
+    await handleAddToCollection(tags, scId, instId)
     setSelected(new Set())
+    setBulkCollectInstance('')
   }
 
   const handleBulkScanClass = async () => {
@@ -700,6 +728,16 @@ export default function TagManagement() {
     await loadAll()
   }
 
+  const handleBulkInstance = async () => {
+    const instId = bulkInstance === '__none__' ? 0 : bulkInstance ? Number(bulkInstance) : null
+    if (instId === null) return
+    const tags = getSelectedTags().filter(t => t.is_collected && t.saved_tag_id)
+    await Promise.all(tags.map(t => patchTag(t.device_id, t.saved_tag_id, { telegraf_instance_id: instId })))
+    setSelected(new Set())
+    setBulkInstance('')
+    await loadAll()
+  }
+
   const handleBulkEnable = async (enabled) => {
     const tags = getSelectedTags().filter(t => t.is_collected && t.saved_tag_id)
     await Promise.all(tags.map(t => patchTag(t.device_id, t.saved_tag_id, { enabled })))
@@ -708,10 +746,31 @@ export default function TagManagement() {
   }
 
   const handleBulkRemove = async () => {
-    const tags = getSelectedTags().filter(t => t.is_collected && t.saved_tag_id)
-    if (tags.length === 0) return
-    if (!confirm(`Remove ${tags.length} tags from collection?`)) return
-    await Promise.all(tags.map(t => deleteTag(t.device_id, t.saved_tag_id)))
+    const allSelected = getSelectedTags().filter(t => t.is_collected)
+    if (allSelected.length === 0) return
+    if (!confirm(`Remove ${allSelected.length} tags from collection?`)) return
+
+    // Delete individually saved tags
+    const savedTags = allSelected.filter(t => t.saved_tag_id)
+    await Promise.all(savedTags.map(t => deleteTag(t.device_id, t.saved_tag_id)))
+
+    // Find and delete NodeIncludes that cover any selected tags
+    const nisToDelete = new Set()
+    for (const tag of allSelected) {
+      const deviceIncludes = nodeIncludesByDevice[tag.device_id] || []
+      for (const ni of deviceIncludes) {
+        if (!ni.enabled || !tag.path) continue
+        const prefix = ni.parent_path + '/'
+        if (tag.path.startsWith(prefix) || tag.path === ni.parent_path) {
+          nisToDelete.add(`${ni.device_id}:${ni.id}`)
+        }
+      }
+    }
+    for (const key of nisToDelete) {
+      const [deviceId, niId] = key.split(':').map(Number)
+      await deleteNodeIncludeApi(deviceId, niId)
+    }
+
     setSelected(new Set())
     await loadAll()
   }
@@ -766,15 +825,11 @@ export default function TagManagement() {
       return (
         <tr key={node.id} className={`hover:bg-gray-800/50 ${selected.has(key) ? 'bg-blue-900/20' : ''}`}>
           <td className="table-td" style={{ width: treeColWidths[0] }}>
-            {isBranchCollected ? (
-              <CheckSquare size={14} className="text-gray-600 cursor-not-allowed" title="Managed by branch subscription" />
-            ) : (
-              <button onClick={() => toggleSelect(key)}>
-                {selected.has(key)
-                  ? <CheckSquare size={14} className="text-blue-400" />
-                  : <Square size={14} className="text-gray-500" />}
-              </button>
-            )}
+            <button onClick={() => toggleSelect(key)}>
+              {selected.has(key)
+                ? <CheckSquare size={14} className="text-blue-400" />
+                : <Square size={14} className={isBranchCollected ? 'text-purple-400' : 'text-gray-500'} />}
+            </button>
           </td>
           <td className="table-td" style={{ width: treeColWidths[1] }}>
             <div className="flex items-center gap-1.5" style={{ paddingLeft: indent + 20 }}>
@@ -802,11 +857,12 @@ export default function TagManagement() {
             <>
               <td className="table-td text-gray-600 text-xs italic" style={{ width: treeColWidths[6] }}>inherited</td>
               <td className="table-td text-gray-600 text-xs italic" style={{ width: treeColWidths[7] }}>inherited</td>
-              <td className="table-td text-center" style={{ width: treeColWidths[8] }}>
+              <td className="table-td text-gray-600 text-xs italic" style={{ width: treeColWidths[8] }}>inherited</td>
+              <td className="table-td text-center" style={{ width: treeColWidths[9] }}>
                 <input type="checkbox" checked disabled
                   className="rounded border-gray-700 bg-gray-800 text-gray-600 cursor-not-allowed" />
               </td>
-              <td className="table-td text-right" style={{ width: treeColWidths[9] }}></td>
+              <td className="table-td text-right" style={{ width: treeColWidths[10] }}></td>
             </>
           ) : tag.is_collected ? (
             <>
@@ -824,12 +880,20 @@ export default function TagManagement() {
                   {scanClasses.map(sc => <option key={sc.id} value={sc.id}>{sc.name}</option>)}
                 </select>
               </td>
-              <td className="table-td text-center" style={{ width: treeColWidths[8] }}>
+              <td className="table-td" style={{ width: treeColWidths[8] }}>
+                <select className="input py-0.5 text-xs w-full"
+                  value={tag.telegraf_instance_id || ''}
+                  onChange={e => handlePatch(tag, 'telegraf_instance_id', e.target.value ? Number(e.target.value) : 0)}>
+                  <option value="">None</option>
+                  {telegrafInstances.map(ti => <option key={ti.id} value={ti.id}>{ti.name}</option>)}
+                </select>
+              </td>
+              <td className="table-td text-center" style={{ width: treeColWidths[9] }}>
                 <input type="checkbox" checked={tag.enabled}
                   onChange={e => handlePatch(tag, 'enabled', e.target.checked)}
                   className="rounded border-gray-600 bg-gray-800 text-blue-500" />
               </td>
-              <td className="table-td text-right" style={{ width: treeColWidths[9] }}>
+              <td className="table-td text-right" style={{ width: treeColWidths[10] }}>
                 <button onClick={() => handleRemoveFromCollection(tag)} className="text-red-400 hover:text-red-300 p-1" title="Remove from collection">
                   <Trash2 size={12} />
                 </button>
@@ -839,9 +903,10 @@ export default function TagManagement() {
             <>
               <td className="table-td text-gray-600 text-xs" style={{ width: treeColWidths[6] }}>{'\u2014'}</td>
               <td className="table-td text-gray-600 text-xs" style={{ width: treeColWidths[7] }}>{'\u2014'}</td>
-              <td className="table-td text-center text-gray-600" style={{ width: treeColWidths[8] }}>{'\u2014'}</td>
-              <td className="table-td text-right" style={{ width: treeColWidths[9] }}>
-                <button onClick={() => handleAddToCollection([tag], defaultScanClass?.id || null)} className="text-green-400 hover:text-green-300 p-1" title="Add to collection">
+              <td className="table-td text-gray-600 text-xs" style={{ width: treeColWidths[8] }}>{'\u2014'}</td>
+              <td className="table-td text-center text-gray-600" style={{ width: treeColWidths[9] }}>{'\u2014'}</td>
+              <td className="table-td text-right" style={{ width: treeColWidths[10] }}>
+                <button onClick={() => handleAddToCollection([tag], defaultScanClass?.id || null, telegrafInstances[0]?.id || null)} className="text-green-400 hover:text-green-300 p-1" title="Add to collection">
                   <Plus size={12} />
                 </button>
               </td>
@@ -908,13 +973,14 @@ export default function TagManagement() {
                   {scanClasses.map(sc => <option key={sc.id} value={sc.id}>{sc.name}</option>)}
                 </select>
               </td>
-              <td className="table-td text-center" style={{ width: treeColWidths[8] }}>
+              <td className="table-td text-gray-600 text-xs" style={{ width: treeColWidths[8] }}>{'\u2014'}</td>
+              <td className="table-td text-center" style={{ width: treeColWidths[9] }}>
                 <input type="checkbox" checked={ni.enabled}
                   onClick={e => e.stopPropagation()}
                   onChange={e => handlePatchNodeInclude(ni, 'enabled', e.target.checked)}
                   className="rounded border-gray-600 bg-gray-800 text-blue-500" />
               </td>
-              <td className="table-td text-right" style={{ width: treeColWidths[9] }}>
+              <td className="table-td text-right" style={{ width: treeColWidths[10] }}>
                 <button onClick={(e) => { e.stopPropagation(); handleDeleteNodeInclude(ni) }} className="text-red-400 hover:text-red-300 p-1" title="Remove branch subscription">
                   <Trash2 size={12} />
                 </button>
@@ -924,8 +990,9 @@ export default function TagManagement() {
             <>
               <td className="table-td text-gray-600 text-xs" style={{ width: treeColWidths[6] }}>{'\u2014'}</td>
               <td className="table-td text-gray-600 text-xs" style={{ width: treeColWidths[7] }}>{'\u2014'}</td>
-              <td className="table-td text-center text-gray-600" style={{ width: treeColWidths[8] }}>{'\u2014'}</td>
-              <td className="table-td text-right" style={{ width: treeColWidths[9] }}>
+              <td className="table-td text-gray-600 text-xs" style={{ width: treeColWidths[8] }}>{'\u2014'}</td>
+              <td className="table-td text-center text-gray-600" style={{ width: treeColWidths[9] }}>{'\u2014'}</td>
+              <td className="table-td text-right" style={{ width: treeColWidths[10] }}>
                 {node.type === 'folder' && stats.collected < stats.total && (
                   <button onClick={(e) => {
                     e.stopPropagation()
@@ -1002,11 +1069,12 @@ export default function TagManagement() {
           <>
             <td className="table-td text-gray-600 text-xs italic" style={{ width: flatColWidths[8] }}>inherited</td>
             <td className="table-td text-gray-600 text-xs italic" style={{ width: flatColWidths[9] }}>inherited</td>
-            <td className="table-td text-center" style={{ width: flatColWidths[10] }}>
+            <td className="table-td text-gray-600 text-xs italic" style={{ width: flatColWidths[10] }}>inherited</td>
+            <td className="table-td text-center" style={{ width: flatColWidths[11] }}>
               <input type="checkbox" checked disabled
                 className="rounded border-gray-700 bg-gray-800 text-gray-600 cursor-not-allowed" />
             </td>
-            <td className="table-td text-right" style={{ width: flatColWidths[11] }}></td>
+            <td className="table-td text-right" style={{ width: flatColWidths[12] }}></td>
           </>
         ) : tag.is_collected ? (
           <>
@@ -1024,12 +1092,20 @@ export default function TagManagement() {
                 {scanClasses.map(sc => <option key={sc.id} value={sc.id}>{sc.name}</option>)}
               </select>
             </td>
-            <td className="table-td text-center" style={{ width: flatColWidths[10] }}>
+            <td className="table-td" style={{ width: flatColWidths[10] }}>
+              <select className="input py-0.5 text-xs w-full"
+                value={tag.telegraf_instance_id || ''}
+                onChange={e => handlePatch(tag, 'telegraf_instance_id', e.target.value ? Number(e.target.value) : 0)}>
+                <option value="">None</option>
+                {telegrafInstances.map(ti => <option key={ti.id} value={ti.id}>{ti.name}</option>)}
+              </select>
+            </td>
+            <td className="table-td text-center" style={{ width: flatColWidths[11] }}>
               <input type="checkbox" checked={tag.enabled}
                 onChange={e => handlePatch(tag, 'enabled', e.target.checked)}
                 className="rounded border-gray-600 bg-gray-800 text-blue-500" />
             </td>
-            <td className="table-td text-right" style={{ width: flatColWidths[11] }}>
+            <td className="table-td text-right" style={{ width: flatColWidths[12] }}>
               <button onClick={() => handleRemoveFromCollection(tag)} className="text-red-400 hover:text-red-300 p-1" title="Remove from collection">
                 <Trash2 size={12} />
               </button>
@@ -1039,9 +1115,10 @@ export default function TagManagement() {
           <>
             <td className="table-td text-gray-600 text-xs" style={{ width: flatColWidths[8] }}>{'\u2014'}</td>
             <td className="table-td text-gray-600 text-xs" style={{ width: flatColWidths[9] }}>{'\u2014'}</td>
-            <td className="table-td text-center text-gray-600" style={{ width: flatColWidths[10] }}>{'\u2014'}</td>
-            <td className="table-td text-right" style={{ width: flatColWidths[11] }}>
-              <button onClick={() => handleAddToCollection([tag], defaultScanClass?.id || null)} className="text-green-400 hover:text-green-300 p-1" title="Add to collection">
+            <td className="table-td text-gray-600 text-xs" style={{ width: flatColWidths[10] }}>{'\u2014'}</td>
+            <td className="table-td text-center text-gray-600" style={{ width: flatColWidths[11] }}>{'\u2014'}</td>
+            <td className="table-td text-right" style={{ width: flatColWidths[12] }}>
+              <button onClick={() => handleAddToCollection([tag], defaultScanClass?.id || null, telegrafInstances[0]?.id || null)} className="text-green-400 hover:text-green-300 p-1" title="Add to collection">
                 <Plus size={12} />
               </button>
             </td>
@@ -1089,10 +1166,13 @@ export default function TagManagement() {
       <FlatResizeTh index={9} className="cursor-pointer">
         <span className="flex items-center gap-1" onClick={() => toggleSort('scan_class_name')}>Scan Class <SortIcon k="scan_class_name" /></span>
       </FlatResizeTh>
-      <FlatResizeTh index={10} className="text-center cursor-pointer">
+      <FlatResizeTh index={10} className="cursor-pointer">
+        <span className="flex items-center gap-1" onClick={() => toggleSort('telegraf_instance_name')}>Instance <SortIcon k="telegraf_instance_name" /></span>
+      </FlatResizeTh>
+      <FlatResizeTh index={11} className="text-center cursor-pointer">
         <span className="flex items-center justify-center gap-1" onClick={() => toggleSort('enabled')}>Enabled <SortIcon k="enabled" /></span>
       </FlatResizeTh>
-      <th className="table-th" style={{ width: flatColWidths[11], minWidth: 40 }}></th>
+      <th className="table-th" style={{ width: flatColWidths[12], minWidth: 40 }}></th>
     </tr>
   )
 
@@ -1112,8 +1192,9 @@ export default function TagManagement() {
       <TreeResizeTh index={5}>Type</TreeResizeTh>
       <TreeResizeTh index={6}>Measurement</TreeResizeTh>
       <TreeResizeTh index={7}>Scan Class</TreeResizeTh>
-      <TreeResizeTh index={8} className="text-center">Enabled</TreeResizeTh>
-      <th className="table-th" style={{ width: treeColWidths[9], minWidth: 40 }}></th>
+      <TreeResizeTh index={8}>Instance</TreeResizeTh>
+      <TreeResizeTh index={9} className="text-center">Enabled</TreeResizeTh>
+      <th className="table-th" style={{ width: treeColWidths[10], minWidth: 40 }}></th>
     </tr>
   )
 
@@ -1212,6 +1293,11 @@ export default function TagManagement() {
             <option value="">All NS</option>
             {namespaces.map(ns => <option key={ns} value={ns}>NS {ns}</option>)}
           </select>
+          <select className="input py-1.5 text-sm w-36" value={filterInstance} onChange={e => setFilterInstance(e.target.value)}>
+            <option value="">All Instances</option>
+            <option value="__none__">No Instance</option>
+            {telegrafInstances.map(ti => <option key={ti.id} value={ti.id}>{ti.name}</option>)}
+          </select>
           {viewMode !== 'available' && (
             <select className="input py-1.5 text-sm w-28" value={filterEnabled} onChange={e => setFilterEnabled(e.target.value)}>
               <option value="">All States</option>
@@ -1251,9 +1337,15 @@ export default function TagManagement() {
           {selectedUncollected > 0 && (
             <>
               <div className="border-l border-blue-700 h-5" />
+              <label className="text-xs text-gray-400">Scan Class</label>
               <select className="input py-1 text-sm w-44" value={bulkScanClass} onChange={e => setBulkScanClass(e.target.value)}>
-                <option value="">{defaultScanClass ? `Default: ${defaultScanClass.name}` : 'Scan Class...'}</option>
+                <option value="">{defaultScanClass ? `Default: ${defaultScanClass.name}` : 'Select...'}</option>
                 {scanClasses.map(sc => <option key={sc.id} value={sc.id}>{sc.name}{sc.is_default ? ' (default)' : ''}</option>)}
+              </select>
+              <label className="text-xs text-gray-400">Instance</label>
+              <select className="input py-1 text-sm w-44" value={bulkCollectInstance} onChange={e => setBulkCollectInstance(e.target.value)}>
+                <option value="">{telegrafInstances.length > 0 ? `Default: ${telegrafInstances[0]?.name}` : 'Select...'}</option>
+                {telegrafInstances.map(ti => <option key={ti.id} value={ti.id}>{ti.name}</option>)}
               </select>
               <button onClick={handleBulkAddToCollection} className="btn-success py-1 text-xs">
                 <Plus size={12} /> Collect {selectedUncollected} Tag{selectedUncollected !== 1 ? 's' : ''}
@@ -1266,12 +1358,21 @@ export default function TagManagement() {
               <div className="border-l border-blue-700 h-5" />
               {selectedUncollected === 0 && (
                 <>
+                  <label className="text-xs text-gray-400">Scan Class</label>
                   <select className="input py-1 text-sm w-36" value={bulkScanClass} onChange={e => setBulkScanClass(e.target.value)}>
-                    <option value="">Set Scan Class...</option>
+                    <option value="">Select...</option>
                     <option value="__none__">None</option>
                     {scanClasses.map(sc => <option key={sc.id} value={sc.id}>{sc.name}</option>)}
                   </select>
                   <button onClick={handleBulkScanClass} disabled={!bulkScanClass} className="btn-primary py-1 text-xs">Apply</button>
+                  <div className="border-l border-blue-700 h-5" />
+                  <label className="text-xs text-gray-400">Instance</label>
+                  <select className="input py-1 text-sm w-36" value={bulkInstance} onChange={e => setBulkInstance(e.target.value)}>
+                    <option value="">Select...</option>
+                    <option value="__none__">None</option>
+                    {telegrafInstances.map(ti => <option key={ti.id} value={ti.id}>{ti.name}</option>)}
+                  </select>
+                  <button onClick={handleBulkInstance} disabled={!bulkInstance} className="btn-primary py-1 text-xs">Apply</button>
                   <div className="border-l border-blue-700 h-5" />
                 </>
               )}
@@ -1391,9 +1492,10 @@ export default function TagManagement() {
               <button
                 onClick={async () => {
                   const scId = branchScanClass ? Number(branchScanClass) : (branchDialog.scanClassId || null)
-                  await handleAddToCollection(branchDialog.uncollectedTags, scId)
+                  await handleAddToCollection(branchDialog.uncollectedTags, scId, branchDialog.instanceId || null)
                   setSelected(new Set())
                   setBranchDialog(null)
+                  setBulkCollectInstance('')
                 }}
                 className="w-full text-left p-4 rounded-lg border border-gray-700 hover:border-blue-500 hover:bg-blue-900/10 transition-colors"
               >
@@ -1407,9 +1509,10 @@ export default function TagManagement() {
               <button
                 onClick={async () => {
                   const scId = branchScanClass ? Number(branchScanClass) : (branchDialog.scanClassId || null)
-                  await handleAddBranchSubscription(branchDialog.node, scId)
+                  await handleAddBranchSubscription(branchDialog.node, scId, branchDialog.instanceId || null)
                   setSelected(new Set())
                   setBranchDialog(null)
+                  setBulkCollectInstance('')
                 }}
                 className="w-full text-left p-4 rounded-lg border border-gray-700 hover:border-green-500 hover:bg-green-900/10 transition-colors"
               >
